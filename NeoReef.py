@@ -22,9 +22,9 @@ import Metashape
 # -------------------
 # USER CONFIG
 # -------------------
-PROJECT_PSX = r"C:\Users\Aruma\OneDrive\Documents\NAKAMURA LABS\SURVEY_PHOTO_LIBRARY\Ishigaki_2025\DCIM\100OMSYS\Ishi25_S010_0916_A1\Ishi25_S010_0916_A1.psx"
-IMAGE_ROOT  = r"C:\Users\Aruma\OneDrive\Documents\NAKAMURA LABS\SURVEY_PHOTO_LIBRARY\Ishigaki_2025\DCIM\100OMSYS\Ishi25_S010_0916_A1"
-ORTHO_OUT   = r"C:\Users\Aruma\OneDrive\Documents\NAKAMURA LABS\SURVEY_PHOTO_LIBRARY\Ishigaki_2025\DCIM\100OMSYS\Ishi25_S010_0916_A1\Ishi25_S010_0916_A1_ortho.tif"
+PROJECT_PSX = r"D:\Armando\Ishi25_S008_0915_A1\Ishi25_S008_0915_A1.psx"
+IMAGE_ROOT  = r"D:\Armando\Ishi25_S008_0915_A1"
+ORTHO_OUT   = r"D:\Armando\Ishi25_S008_0915_A1\Ishi25_S008_0915_A1_ortho.tif"
 
 # If your TG-7 wrote GPS EXIF (linked via OM Workspace), keep True to try reference preselection.
 # If not (common underwater), set to False.
@@ -79,7 +79,7 @@ else:
 
 # Work on the active chunk or create one if none
 chunk = doc.chunk if doc.chunk is not None else doc.addChunk()
-chunk.label = "Ishi25_S010_0916_A1"
+chunk.label = "Ishi25_S008_0915_A1" 
 
 # Assign CRS if the images have valid GPS and you want georeferencing
 if SET_CRS:

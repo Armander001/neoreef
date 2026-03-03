@@ -7,7 +7,7 @@ doc = Metashape.Document()
 chunk = doc.addChunk()
 
 # Add photos (replace with your image paths)
-photos = [r"C:\Users\Arumando\Pictures\Last Da\PB120{:03d}.jpg".format(i) for i in range(1, 66)]
+photos = [r"S:\Armando\SURVEY_PHOTO_LIBRARY\Ishigaki_2025\100OMSYS\Ishi25_S001_0907_A1\P9070{:049}.jpg".format(i) for i in range(1, 66)]
 chunk.addPhotos(photos)
 
 # Align cameras
