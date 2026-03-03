@@ -17,14 +17,29 @@ import os
 import re
 
 import sys
+
+try:
+    if sys.stdout is None or getattr(sys.stdout, "closed", False):
+        sys.stdout = sys.__stdout__
+    if sys.stderr is None or getattr(sys.stderr, "closed", False):
+        sys.stderr = sys.__stderr__
+except Exception:
+    pass
+
+
+
+
 sys.path.append(r"C:\Program Files\Agisoft\Metashape Pro\python")
 import Metashape
+
+
+
 
 
 # -------------------
 # USER CONFIG - PATHS
 # -------------------
-PHOTO_LIBRARY = r"S:\Armando\SURVEY_PHOTO_LIBRARY\Ishigaki_2025\100OMSYS"
+PHOTO_LIBRARY = r"S:\Armando\SURVEY_PHOTO_LIBRARY\Ishigaki_2024"
 OUTPUT_BASE   = r"D:\Armando\Processed_Projects"
 
 # -------------------
@@ -139,7 +154,7 @@ os.makedirs(OUTPUT_BASE, exist_ok=True)
 log_handle = open(LOG_FILE, "w", encoding="utf-8", errors="replace")
 def log_msg(msg):
     """Print and log message."""
-    print(msg)
+    #print(msg)
     log_handle.write(msg + "\n")
     log_handle.flush()
 
