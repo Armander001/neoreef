@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeoReef — Ishigaki Island</title>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #000; }
+
+    /* Globe fills everything above the toolbar */
+    #cesiumContainer {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      bottom: 72px;
+    }
+
+    /* ── Bottom toolbar ──────────────────────────────────────────────────── */
+    #toolbar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 72px;
+      background: rgba(12, 16, 26, 0.96);
+      border-top: 1px solid rgba(126,200,227,0.18);
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      gap: 0;
+      z-index: 200;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    #toolbar::-webkit-scrollbar { height: 4px; }
+    #toolbar::-webkit-scrollbar-thumb { background: rgba(126,200,227,0.3); border-radius: 2px; }
+
+    /* Fly home button */
+    #flyHomeBtn {
+      flex-shrink: 0;
+      background: rgba(126,200,227,0.12);
+      border: 1px solid rgba(126,200,227,0.45);
+      color: #7ec8e3;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    #flyHomeBtn:hover { background: rgba(126,200,227,0.25); }
+    #tilesBtn:hover     { background: rgba(126,200,227,0.32); }
+    #tilesBtn.active    { background: rgba(126,200,227,0.25); border-color: rgba(126,200,227,0.80); }
+    #separateBtn:hover  { background: rgba(200,180,255,0.22); }
+    #separateBtn.active { background: rgba(200,180,255,0.30); border-color: rgba(200,180,255,0.80); color: #e8d8ff; }
+
+    /* Vertical divider between toolbar sections */
+    .tb-divider {
+      flex-shrink: 0;
+      width: 1px;
+      height: 44px;
+      background: rgba(255,255,255,0.12);
+      margin: 0 10px;
+    }
+
+    /* A group header label */
+    .tb-group {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+      padding: 0 6px;
+    }
+    .tb-group-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #6a7890;
+    }
+
+    /* A single layer card inside the toolbar */
+    .layer-card {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin: 0 4px;
+      min-width: 140px;
+      max-width: 200px;
+    }
+    .layer-card-top {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .layer-card-top input[type=checkbox] { flex-shrink: 0; cursor: pointer; accent-color: #7ec8e3; }
+    .layer-card-top .layer-name {
+      flex: 1;
+      font-size: 11px;
+      color: #d0d8e8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+    }
+    .fly-btn {
+      flex-shrink: 0;
+      background: transparent;
+      border: 1px solid rgba(126,200,227,0.35);
+      color: #7ec8e3;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 10px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .fly-btn:hover { background: rgba(126,200,227,0.18); }
+
+    /* Opacity bubble — sits below the layer name row */
+    .opacity-bubble {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 20px;
+      padding: 3px 8px;
+      margin-top: 2px;
+    }
+    .opacity-label { font-size: 9px; color: #7ec8e3; flex-shrink: 0; letter-spacing: 0.3px; }
+    .opacity-slider {
+      flex: 1;
+      height: 3px;
+      cursor: pointer;
+      accent-color: #7ec8e3;
+      min-width: 60px;
+    }
+
+    /* ── Legend panel (left side) ───────────────────────────────────────── */
+    #legend {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(12, 16, 26, 0.92);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 8px 10px;
+      z-index: 100;
+      display: none;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+      min-width: 170px;
+    }
+    #legend::-webkit-scrollbar { width: 4px; }
+    #legend::-webkit-scrollbar-thumb { background: rgba(126,200,227,0.3); border-radius: 2px; }
+    #legend-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #7ec8e3;
+      margin-bottom: 7px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 2px 0;
+      font-size: 11px;
+      color: #c8d0e0;
+    }
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+
+    /* ── Status toast (top center) ───────────────────────────────────────── */
+    #status {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(12,16,26,0.88);
+      color: #e8eaf0;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 300;
+      display: none;
+      border: 1px solid rgba(126,200,227,0.2);
+    }
+  </style>
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<!-- Legend panel -->
+<div id="legend">
+  <div id="legend-title">Land Use</div>
+  <div id="legend-items"></div>
+</div>
+
+<div id="toolbar">
+  <button id="flyHomeBtn" onclick="flyToIsland()">&#9671; Fly to Ishigaki</button>
+  <button id="tilesBtn" class="active" onclick="toggle3DTiles(this)" title="Show/hide Google Photorealistic 3D Tiles"
+    style="flex-shrink:0;background:rgba(126,200,227,0.20);border:1px solid rgba(126,200,227,0.55);
+           color:#7ec8e3;border-radius:6px;padding:8px 14px;font-size:13px;font-family:inherit;
+           cursor:pointer;white-space:nowrap;margin-left:6px;transition:background 0.15s;">
+    &#9956; 3D Tiles
+  </button>
+  <button id="separateBtn" onclick="toggleSeparation(this)" title="Separate layers in 3D space"
+    style="flex-shrink:0;background:rgba(200,180,255,0.10);border:1px solid rgba(200,180,255,0.40);
+           color:#c8b4ff;border-radius:6px;padding:8px 14px;font-size:13px;font-family:inherit;
+           cursor:pointer;white-space:nowrap;margin-left:6px;transition:background 0.15s;">
+    &#9865; Separate Layers
+  </button>
+  <div class="tb-divider"></div>
+  <div id="layerContent" style="display:flex;align-items:center;gap:0;">
+    <span style="color:#5a6880;font-size:12px;padding:0 8px;">Loading layers…</span>
+  </div>
+</div>
+
+<div id="status"></div>
+
+<script>
+const MANIFEST_URL = "manifest.json";
+
+// TOCHICD legend — mirrors cesium_pipeline.py TOCHICD_MAP
+// extrudeH: extrusion height in metres above ellipsoid for the 3D volume
+const TOCHICD_LEGEND = [
+  { code:  0, color: "#B5E853", label: "Paddy field",            extrudeH:  8 },
+  { code:  1, color: "#FFFF99", label: "Other agricultural",      extrudeH:  8 },
+  { code:  2, color: "#228B22", label: "Forest",                  extrudeH: 25 },
+  { code:  3, color: "#C2B280", label: "Wasteland",               extrudeH:  5 },
+  { code:  4, color: "#FF6347", label: "Building land",           extrudeH: 30 },
+  { code:  5, color: "#808080", label: "Road",                    extrudeH:  4 },
+  { code:  6, color: "#A0522D", label: "Railway",                 extrudeH:  6 },
+  { code:  7, color: "#FFD700", label: "Other developed",         extrudeH: 10 },
+  { code:  8, color: "#4169E1", label: "Rivers / lakes",          extrudeH:  3 },
+  { code:  9, color: "#F5DEB3", label: "Beach / coastal",         extrudeH:  3 },
+  { code: 10, color: "#1E90FF", label: "Sea / ocean",             extrudeH:  2 },
+  { code: 11, color: "#90EE90", label: "Golf course",             extrudeH: 12 },
+  { code: 12, color: "#7CFC00", label: "Park / green space",      extrudeH: 10 },
+  { code: 13, color: "#ADFF2F", label: "Sports ground",           extrudeH: 10 },
+  { code: 14, color: "#CD853F", label: "Industrial / warehouse",  extrudeH: 35 },
+  { code: 15, color: "#DDA0DD", label: "Public facilities",       extrudeH: 18 },
+  { code: 16, color: "#FFB6C1", label: "School land",             extrudeH: 15 },
+  { code: 17, color: "#D3D3D3", label: "Vacant / other",          extrudeH:  5 },
+  { code: 21, color: "#9370DB", label: "Special zone",            extrudeH: 12 },
+];
+const TOCHICD_BY_CODE = Object.fromEntries(TOCHICD_LEGEND.map(e => [e.code, e]));
+
+let viewer;
+let manifest = null;
+const orthoLayers     = {};
+
+// orthoLayers stores { ground, lifted, url, rect, _show, _alpha } for local-image layers,
+// or a plain ImageryLayer for ion-only layers.
+function setOrthoAlpha(entry, alpha) {
+  if (!entry) return;
+  const color = new Cesium.Color(1, 1, 1, alpha);
+  if (entry.ground) {
+    entry._alpha = alpha;
+    if (entry.ground.appearance) entry.ground.appearance.material.uniforms.color = color;
+    if (entry.lifted?.appearance) entry.lifted.appearance.material.uniforms.color = color;
+  } else if (entry.appearance) {
+    entry.appearance.material.uniforms.color = color;
+  } else {
+    entry.alpha = alpha;
+  }
+}
+
+function setOrthoShow(name, v) {
+  const entry = orthoLayers[name];
+  if (!entry) return;
+  if (entry.ground) {
+    entry._show = v;
+    if (entry.lifted) { entry.lifted.show = v; entry.ground.show = false; }
+    else               { entry.ground.show = v; }
+  } else {
+    entry.show = v;
+  }
+}
+const landuseSources  = {};
+const landuseColors   = {}; // rec.id -> { entityId -> hexColor } for opacity
+const landuseExtH     = {}; // rec.id -> { entityId -> original extrudeH } for separation
+const LAYER_SEP_M     = 400; // metres between layers in separated view
+let   separatedMode   = false;
+
+// ---------------------------------------------------------------------------
+// Status toast
+// ---------------------------------------------------------------------------
+function showStatus(msg, ms = 3000) {
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.style.display = "block";
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.display = "none"; }, ms);
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function bboxToRect(bbox) {
+  return bbox ? Cesium.Rectangle.fromDegrees(bbox[0], bbox[1], bbox[2], bbox[3]) : null;
+}
+
+// ---------------------------------------------------------------------------
+// Layer loading
+// ---------------------------------------------------------------------------
+async function addOrthoLayer(rec) {
+  if (orthoLayers[rec.survey_name]) return orthoLayers[rec.survey_name];
+  try {
+    let provider;
+    console.log(`Ortho ${rec.survey_name}: ion_asset_id=${rec.ion_asset_id} bbox=${JSON.stringify(rec.bbox_wgs84)} cog_url=${rec.cog_url}`);
+    if (rec.bbox_wgs84 && (rec.preview_url || rec.cog_url)) {
+      // Use GroundPrimitive so the ortho renders ON TOP of 3D tiles
+      const imgUrl = rec.preview_url ?? rec.cog_url;
+      const rect   = bboxToRect(rec.bbox_wgs84);
+      console.log(`  -> GroundPrimitive from ${imgUrl}`);
+      const primitive = new Cesium.GroundPrimitive({
+        geometryInstances: new Cesium.GeometryInstance({
+          geometry: new Cesium.RectangleGeometry({
+            rectangle: rect,
+            vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT,
+          }),
+        }),
+        appearance: new Cesium.EllipsoidSurfaceAppearance({
+          material: Cesium.Material.fromType('Image', {
+            image: imgUrl,
+            repeat: new Cesium.Cartesian2(1.0, 1.0),
+          }),
+          aboveGround: false,
+        }),
+        classificationType: Cesium.ClassificationType.BOTH,
+      });
+      viewer.scene.primitives.add(primitive);
+      const entry = { ground: primitive, lifted: null, url: imgUrl, rect, _show: true, _alpha: 1.0 };
+      orthoLayers[rec.survey_name] = entry;
+      return entry;
+    } else if (manifest.use_ion && rec.ion_asset_id != null) {
+      console.log(`  -> loading from ion asset ${rec.ion_asset_id}`);
+      provider = await Cesium.IonImageryProvider.fromAssetId(rec.ion_asset_id);
+    } else {
+      console.warn(`  -> NO SOURCE: use_ion=${manifest.use_ion} ion_asset_id=${rec.ion_asset_id} cog_url=${rec.cog_url} bbox=${rec.bbox_wgs84}`);
+      return null;
+    }
+    const layer = viewer.imageryLayers.addImageryProvider(provider);
+    layer.show = true;
+    layer.alpha = 1.0;
+    orthoLayers[rec.survey_name] = layer;
+    console.log(`  -> imagery layer added, count=${viewer.imageryLayers.length}`);
+    return layer;
+  } catch (e) {
+    console.error(`Ortho load failed [${rec.survey_name}]:`, e);
+    return null;
+  }
+}
+
+async function addLanduseLayer(rec) {
+  if (landuseSources[rec.id]) return landuseSources[rec.id];
+  try {
+    let source;
+    const now = Cesium.JulianDate.now();
+
+    // Always load land use from local GeoJSON — ion re-tiles the file and bakes in
+    // stale coordinates from before the CRS fix; local file is the authoritative source.
+    const loadUrl = rec.geojson_url;
+    if (!loadUrl) { console.warn("No source for landuse", rec.id); return null; }
+
+    source = await Cesium.GeoJsonDataSource.load(loadUrl, {
+      stroke: Cesium.Color.WHITE.withAlpha(0.3),
+      strokeWidth: 1,
+      fill: Cesium.Color.WHITE.withAlpha(0),
+      clampToGround: false,
+    });
+
+    // Build per-entity extruded 3D volumes from TOCHICD codes.
+    // Colors come from TOCHICD_BY_CODE lookup first; fill_color property is a fallback.
+    // This is robust to ion stripping custom properties during upload processing.
+    const colorMap = {};
+    const extHMap  = {};
+    let coloredCount = 0, skippedCount = 0;
+    source.entities.values.forEach(entity => {
+      const props = entity.properties;
+      // Prefer TOCHICD-driven color (reliable even after ion processing)
+      const code  = props?.TOCHICD?.getValue(now);
+      const entry = TOCHICD_BY_CODE[Number(code)];
+      const hex   = entry
+        ? entry.color
+        : ((props?.fill_color?.getValue(now)) ?? "#CCCCCC");
+      const extH  = entry ? entry.extrudeH : 8;
+      colorMap[entity.id] = hex;
+      extHMap[entity.id]  = extH;
+      if (entity.polygon) {
+        try {
+          entity.polygon.material                = Cesium.Color.fromCssColorString(hex).withAlpha(0.55);
+          entity.polygon.outline                 = true;
+          entity.polygon.outlineColor            = Cesium.Color.WHITE.withAlpha(0.2);
+          entity.polygon.outlineWidth            = 1;
+          entity.polygon.heightReference         = Cesium.HeightReference.CLAMP_TO_GROUND;
+          entity.polygon.extrudedHeight          = extH;
+          entity.polygon.extrudedHeightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+          coloredCount++;
+        } catch (err) {
+          console.warn("Color parse failed for entity", entity.id, "hex:", hex, err);
+          skippedCount++;
+        }
+      }
+    });
+    console.log(`Landuse ${rec.id}: colored=${coloredCount} skipped=${skippedCount} total=${source.entities.values.length}`);
+
+    landuseColors[rec.id] = colorMap;
+    landuseExtH[rec.id]   = extHMap;
+    source.show = true;
+    await viewer.dataSources.add(source);
+    landuseSources[rec.id] = source;
+
+    // Show legend
+    buildLegend();
+
+    return source;
+  } catch (e) {
+    console.error("Landuse load failed:", rec.id, e);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Camera
+// ---------------------------------------------------------------------------
+function flyToIsland() {
+  if (!manifest) return;
+  const sa = manifest.survey_area;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(sa.center_lon, sa.center_lat, sa.default_altitude_m),
+    duration: 2.0,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 3D Tiles toggle — hide to see ortho imagery underneath
+// ---------------------------------------------------------------------------
+function toggle3DTiles(btn) {
+  const tileset = window._base3DTileset;
+  if (!tileset) { btn.style.opacity = "0.4"; btn.title = "No 3D tileset loaded"; return; }
+  tileset.show = !tileset.show;
+  btn.classList.toggle("active", tileset.show);
+  btn.title = tileset.show ? "Hide Google 3D Tiles (shows ortho underneath)" : "Show Google 3D Tiles";
+}
+
+// ---------------------------------------------------------------------------
+// Layer separation — floats each data layer at a distinct altitude so all
+// layers are simultaneously visible in 3D with a clear vertical gap between them.
+// ---------------------------------------------------------------------------
+function toggleSeparation(btn) {
+  separatedMode = !separatedMode;
+  btn.classList.toggle("active", separatedMode);
+  btn.title = separatedMode ? "Collapse layers to ground" : "Separate layers in 3D space";
+
+  const now = Cesium.JulianDate.now();
+
+  // Land use layers — each source gets its own elevation band
+  const luIds = Object.keys(landuseSources);
+  luIds.forEach((id, layerIdx) => {
+    const src    = landuseSources[id];
+    const extMap = landuseExtH[id] || {};
+    const baseH  = separatedMode ? LAYER_SEP_M * (layerIdx + 1) : 0;
+
+    src.entities.values.forEach(entity => {
+      if (!entity.polygon) return;
+      const origExt = extMap[entity.id] ?? 8;
+      if (separatedMode) {
+        // Float layers at absolute altitude — switch off terrain-relative clamping
+        entity.polygon.heightReference         = Cesium.HeightReference.NONE;
+        entity.polygon.extrudedHeightReference = Cesium.HeightReference.NONE;
+        entity.polygon.height         = baseH;
+        entity.polygon.extrudedHeight = baseH + origExt;
+      } else {
+        // Back to terrain-clamped ground level
+        entity.polygon.heightReference         = Cesium.HeightReference.CLAMP_TO_GROUND;
+        entity.polygon.extrudedHeightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+        entity.polygon.height         = 0;
+        entity.polygon.extrudedHeight = origExt;
+      }
+    });
+  });
+
+  // Ortho layers: coral below drone. Use regular Primitive at absolute height
+  // in separated mode (GroundPrimitive can't have an explicit altitude).
+  const orderedOrthos = [
+    ...(manifest.orthomosaics?.filter(r => r.ortho_type === "coral" && r.bbox_wgs84) ?? []),
+    ...(manifest.orthomosaics?.filter(r => r.ortho_type === "drone" && r.bbox_wgs84) ?? []),
+  ];
+  orderedOrthos.forEach((rec, i) => {
+    const entry = orthoLayers[rec.survey_name];
+    if (!entry?.ground) return;
+    const height = LAYER_SEP_M * (luIds.length + 1 + i);
+
+    if (separatedMode) {
+      if (!entry.lifted) {
+        entry.lifted = new Cesium.Primitive({
+          geometryInstances: new Cesium.GeometryInstance({
+            geometry: new Cesium.RectangleGeometry({
+              rectangle: entry.rect,
+              height: height,
+              vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT,
+            }),
+          }),
+          appearance: new Cesium.EllipsoidSurfaceAppearance({
+            material: Cesium.Material.fromType('Image', {
+              image: entry.url,
+              repeat: new Cesium.Cartesian2(1.0, 1.0),
+            }),
+            aboveGround: true,
+          }),
+        });
+        viewer.scene.primitives.add(entry.lifted);
+        if (entry._alpha < 1.0) {
+          entry.lifted.appearance.material.uniforms.color = new Cesium.Color(1, 1, 1, entry._alpha);
+        }
+      }
+      entry.lifted.show = entry._show;
+      entry.ground.show = false;
+    } else {
+      if (entry.lifted) {
+        viewer.scene.primitives.remove(entry.lifted);
+        entry.lifted = null;
+      }
+      entry.ground.show = entry._show;
+    }
+  });
+
+  const topM = LAYER_SEP_M * (luIds.length + orderedOrthos.length + 1) + 200;
+  if (separatedMode) {
+    const sa = manifest.survey_area;
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(sa.center_lon, sa.center_lat - 0.04, topM + 8000),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 },
+      duration: 1.5,
+    });
+  }
+}
+
+function flyToOrtho(rec) {
+  if (rec.bbox_wgs84) {
+    viewer.camera.flyTo({ destination: Cesium.Rectangle.fromDegrees(...rec.bbox_wgs84), duration: 2.0 });
+  } else {
+    flyToIsland();
+  }
+  showStatus("Navigating to " + rec.survey_name);
+}
+
+// ---------------------------------------------------------------------------
+// Legend
+// ---------------------------------------------------------------------------
+function buildLegend() {
+  const panel = document.getElementById("legend");
+  const items = document.getElementById("legend-items");
+  items.innerHTML = "";
+
+  // Only show codes that actually appear in the loaded data
+  const activeCodes = new Set();
+  Object.values(landuseSources).forEach(src => {
+    src.entities.values.forEach(e => {
+      const now = Cesium.JulianDate.now();
+      const code = e.properties?.TOCHICD?.getValue(now);
+      if (code != null) activeCodes.add(Number(code));
+    });
+  });
+
+  TOCHICD_LEGEND.forEach(entry => {
+    if (!activeCodes.has(entry.code)) return;
+    const row = document.createElement("div");
+    row.className = "legend-row";
+    const swatch = document.createElement("div");
+    swatch.className = "legend-swatch";
+    swatch.style.background = entry.color;
+    const lbl = document.createElement("span");
+    lbl.textContent = entry.label;
+    row.appendChild(swatch);
+    row.appendChild(lbl);
+    items.appendChild(row);
+  });
+
+  panel.style.display = items.children.length > 0 ? "block" : "none";
+}
+
+// ---------------------------------------------------------------------------
+// Build bottom toolbar
+// ---------------------------------------------------------------------------
+function buildToolbar() {
+  const content = document.getElementById("layerContent");
+  content.innerHTML = "";
+
+  function makeCard(name, id, checked, onToggle, onOpacity, onFly) {
+    const card = document.createElement("div");
+    card.className = "layer-card";
+
+    const top = document.createElement("div");
+    top.className = "layer-card-top";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.id = id;
+    cb.checked = checked;
+    cb.addEventListener("change", () => onToggle(cb.checked));
+
+    const lbl = document.createElement("label");
+    lbl.htmlFor = id;
+    lbl.className = "layer-name";
+    lbl.title = name;
+    lbl.textContent = name;
+
+    top.appendChild(cb);
+    top.appendChild(lbl);
+
+    if (onFly) {
+      const flyBtn = document.createElement("button");
+      flyBtn.className = "fly-btn";
+      flyBtn.textContent = "Fly";
+      flyBtn.onclick = onFly;
+      top.appendChild(flyBtn);
+    }
+
+    const bubble = document.createElement("div");
+    bubble.className = "opacity-bubble";
+
+    const opLbl = document.createElement("span");
+    opLbl.className = "opacity-label";
+    opLbl.textContent = "opacity";
+
+    const defaultAlpha = onFly ? 1.0 : 0.6;
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.className = "opacity-slider";
+    slider.min = "0"; slider.max = "1"; slider.step = "0.05";
+    slider.value = String(defaultAlpha);
+    slider.addEventListener("input", () => {
+      const v = Math.min(1, Math.max(0, parseFloat(slider.value)));
+      onOpacity(v);
+    });
+
+    bubble.appendChild(opLbl);
+    bubble.appendChild(slider);
+    card.appendChild(top);
+    card.appendChild(bubble);
+    return card;
+  }
+
+  function makeGroupLabel(text) {
+    const g = document.createElement("div");
+    g.className = "tb-group";
+    const l = document.createElement("div");
+    l.className = "tb-group-label";
+    l.textContent = text;
+    g.appendChild(l);
+    return g;
+  }
+
+  // ── Drone orthos ──────────────────────────────────────────────────────────
+  const drones = manifest.orthomosaics.filter(r => r.ortho_type === "drone");
+  if (drones.length > 0) {
+    content.appendChild(makeGroupLabel("Drone"));
+    const divider = document.createElement("div"); divider.className = "tb-divider";
+    drones.forEach(rec => {
+      const hasSource = rec.ion_asset_id != null || (rec.cog_url && rec.bbox_wgs84);
+      const card = makeCard(
+        rec.survey_name + (hasSource ? "" : " ⚠ no location"),
+        "ortho_" + rec.survey_name, hasSource,
+        checked => {
+          setOrthoShow(rec.survey_name, checked);
+        },
+        alpha => {
+          setOrthoAlpha(orthoLayers[rec.survey_name], alpha);
+        },
+        () => flyToOrtho(rec)
+      );
+      if (!hasSource) card.style.opacity = "0.5";
+      content.appendChild(card);
+    });
+    content.appendChild(divider);
+  }
+
+  // ── Coral mosaics ─────────────────────────────────────────────────────────
+  const corals = manifest.orthomosaics.filter(r => r.ortho_type === "coral");
+  if (corals.length > 0) {
+    content.appendChild(makeGroupLabel("Coral"));
+    const divider = document.createElement("div"); divider.className = "tb-divider";
+    corals.forEach(rec => {
+      const hasSource = rec.ion_asset_id != null || (rec.cog_url && rec.bbox_wgs84);
+      const card = makeCard(
+        rec.survey_name + (hasSource ? "" : " ⚠ no location"),
+        "ortho_" + rec.survey_name, hasSource,
+        checked => {
+          setOrthoShow(rec.survey_name, checked);
+        },
+        alpha => {
+          setOrthoAlpha(orthoLayers[rec.survey_name], alpha);
+        },
+        () => flyToOrtho(rec)
+      );
+      if (!hasSource) card.style.opacity = "0.5";
+      content.appendChild(card);
+    });
+    content.appendChild(divider);
+  }
+
+  // ── Land use ──────────────────────────────────────────────────────────────
+  if (manifest.landuse_layers.length > 0) {
+    content.appendChild(makeGroupLabel("Land Use"));
+    manifest.landuse_layers.forEach(rec => {
+      const card = makeCard(
+        `${rec.year_label} (${rec.calendar_year})`,
+        "lu_" + rec.id, true,
+        async checked => {
+          if (checked && !landuseSources[rec.id]) {
+            showStatus("Loading land use " + rec.year_label + "...", 10000);
+            await addLanduseLayer(rec);
+            showStatus("Land use " + rec.year_label + " loaded");
+          } else if (landuseSources[rec.id]) {
+            landuseSources[rec.id].show = checked;
+            document.getElementById("legend").style.display = checked ? "block" : "none";
+          }
+        },
+        alpha => {
+          const src = landuseSources[rec.id];
+          const colorMap = landuseColors[rec.id] || {};
+          if (src) {
+            src.entities.values.forEach(e => {
+              const hex = colorMap[e.id] || "#CCCCCC";
+              if (e.polygon) {
+                e.polygon.material = Cesium.Color.fromCssColorString(hex).withAlpha(alpha);
+              }
+            });
+          }
+        },
+        null  // no fly-to for land use
+      );
+      content.appendChild(card);
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+async function init() {
+  // Load manifest
+  try {
+    const resp = await fetch(MANIFEST_URL);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    manifest = await resp.json();
+  } catch (e) {
+    console.error("Manifest load failed:", e);
+    document.getElementById("layerContent").innerHTML =
+      '<span style="color:#e07070;font-size:11px;padding:0 8px;">manifest.json not found — run --stage serve</span>';
+    manifest = {
+      use_ion: false, cesium_ion_token: "",
+      survey_area: { center_lon: 124.205, center_lat: 24.470, default_altitude_m: 15000 },
+      orthomosaics: [], landuse_layers: [],
+    };
+  }
+
+  // Set ion token BEFORE creating viewer
+  if (manifest.cesium_ion_token && manifest.cesium_ion_token.length > 20) {
+    Cesium.Ion.defaultAccessToken = manifest.cesium_ion_token;
+  } else {
+    // Suppress default-token warning; OSM will be used as base layer
+    Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.invalid";
+  }
+
+  // Create viewer with Cesium World Terrain — terrain is required for 3D pivot/tilt navigation
+  // imageryProvider:false prevents Cesium from requesting the default Bing Maps asset
+  // (asset 2) which causes a 404 on accounts that don't have Bing access.
+  viewer = new Cesium.Viewer("cesiumContainer", {
+    baseLayerPicker: false,
+    navigationHelpButton: false,
+    homeButton: false,
+    sceneModePicker: false,
+    animation: false,
+    timeline: false,
+    fullscreenButton: false,
+    geocoder: false,
+    infoBox: true,
+    selectionIndicator: true,
+    scene3DOnly: true,
+    imageryProvider: false,
+  });
+
+  // Add world terrain so the camera has 3D surface geometry to pivot against
+  try {
+    viewer.terrainProvider = await Cesium.createWorldTerrainAsync();
+  } catch (e) {
+    console.warn("World terrain unavailable:", e);
+  }
+
+  // OSM base imagery — reliable, no ion asset required
+  viewer.imageryLayers.addImageryProvider(
+    new Cesium.OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" })
+  );
+
+  // Google Photorealistic 3D Tiles — stored so the toolbar toggle can show/hide it
+  if (manifest.base_ion_3dtiles_asset != null) {
+    try {
+      window._base3DTileset = await Cesium.Cesium3DTileset.fromIonAssetId(manifest.base_ion_3dtiles_asset);
+      viewer.scene.primitives.add(window._base3DTileset);
+    } catch (e) {
+      console.warn("3D tileset base failed:", e);
+    }
+  } else if (manifest.base_ion_imagery_asset != null) {
+    try {
+      viewer.imageryLayers.addImageryProvider(
+        await Cesium.IonImageryProvider.fromAssetId(manifest.base_ion_imagery_asset)
+      );
+    } catch (e) {
+      console.warn("Base imagery asset failed:", e);
+    }
+  }
+
+  // Start over Ishigaki at a tilted angle so 3D is immediately apparent
+  const sa = manifest.survey_area;
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(sa.center_lon, sa.center_lat, sa.default_altitude_m),
+    orientation: {
+      heading: Cesium.Math.toRadians(0),
+      pitch:   Cesium.Math.toRadians(-45),
+      roll:    0,
+    },
+  });
+
+  // Build toolbar UI
+  buildToolbar();
+
+  // Auto-load all layers
+  for (const rec of manifest.orthomosaics) {
+    await addOrthoLayer(rec);
+  }
+  for (const rec of manifest.landuse_layers) {
+    showStatus("Loading land use " + rec.year_label + "...", 10000);
+    await addLanduseLayer(rec);
+  }
+
+  showStatus("NeoReef viewer ready", 4000);
+}
+
+window.addEventListener("load", init);
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# Cesium pipeline - actual config contains ion token, never commit
+cesium_config.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db

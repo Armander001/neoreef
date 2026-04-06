@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeoReef — Land Use Viewer</title>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0a0e1a; }
+
+    #cesiumContainer {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      bottom: 60px;
+    }
+
+    /* ── Bottom toolbar ── */
+    #toolbar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 60px;
+      background: rgba(10, 14, 26, 0.96);
+      border-top: 1px solid rgba(200,180,255,0.18);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 8px;
+      z-index: 200;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    #toolbar::-webkit-scrollbar { height: 4px; }
+    #toolbar::-webkit-scrollbar-thumb { background: rgba(200,180,255,0.3); border-radius: 2px; }
+
+    .tb-btn {
+      flex-shrink: 0;
+      background: rgba(200,180,255,0.10);
+      border: 1px solid rgba(200,180,255,0.40);
+      color: #c8b4ff;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .tb-btn:hover  { background: rgba(200,180,255,0.22); }
+    .tb-btn.active { background: rgba(200,180,255,0.30); border-color: rgba(200,180,255,0.80); color: #e8d8ff; }
+
+    .tb-divider {
+      flex-shrink: 0;
+      width: 1px;
+      height: 36px;
+      background: rgba(200,180,255,0.15);
+      margin: 0 4px;
+    }
+
+    /* Layer cards */
+    .layer-card {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(200,180,255,0.06);
+      border: 1px solid rgba(200,180,255,0.18);
+      border-radius: 6px;
+      padding: 4px 10px;
+      height: 42px;
+    }
+    .layer-card label { color: #c8b4ff; font-size: 12px; cursor: pointer; user-select: none; }
+    .layer-card input[type=checkbox] { accent-color: #c8b4ff; cursor: pointer; }
+    .layer-card input[type=range] {
+      width: 70px; height: 3px; accent-color: #c8b4ff; cursor: pointer;
+    }
+
+    /* ── Legend ── */
+    #legend {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(10, 14, 26, 0.88);
+      border: 1px solid rgba(200,180,255,0.20);
+      border-radius: 8px;
+      padding: 10px 12px;
+      z-index: 100;
+      max-height: calc(100% - 100px);
+      overflow-y: auto;
+      min-width: 180px;
+    }
+    #legend::-webkit-scrollbar { width: 4px; }
+    #legend::-webkit-scrollbar-thumb { background: rgba(200,180,255,0.3); border-radius: 2px; }
+    #legend h4 {
+      color: #c8b4ff;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(200,180,255,0.15);
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px;
+    }
+    .legend-swatch {
+      width: 12px; height: 12px;
+      border-radius: 2px;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .legend-label { color: #a89cc0; font-size: 11px; }
+
+    /* ── Status toast ── */
+    #status {
+      position: absolute;
+      bottom: 70px; left: 50%; transform: translateX(-50%);
+      background: rgba(10,14,26,0.92);
+      border: 1px solid rgba(200,180,255,0.25);
+      color: #c8b4ff;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      display: none;
+      z-index: 300;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="cesiumContainer"></div>
+
+  <div id="legend">
+    <h4>Land Use</h4>
+    <div id="legend-items"></div>
+  </div>
+
+  <div id="toolbar">
+    <button class="tb-btn" onclick="flyToIsland()">&#9671; Fly to Ishigaki</button>
+    <button id="separateBtn" class="tb-btn" onclick="toggleSeparation(this)" title="Separate layers in 3D space">&#9865; Separate Layers</button>
+    <div class="tb-divider"></div>
+    <div id="layerContent" style="display:flex;align-items:center;gap:6px;">
+      <span style="color:#5a4880;font-size:12px;">Loading…</span>
+    </div>
+  </div>
+
+  <div id="status"></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// TOCHICD colour + extrusion map
+// ---------------------------------------------------------------------------
+const TOCHICD_LEGEND = [
+  { code:  0, color: "#B5E853", label: "Paddy field",            extrudeH:  8 },
+  { code:  1, color: "#FFFF99", label: "Other agricultural",      extrudeH:  8 },
+  { code:  2, color: "#228B22", label: "Forest",                  extrudeH: 25 },
+  { code:  3, color: "#C2B280", label: "Wasteland",               extrudeH:  6 },
+  { code:  4, color: "#FF6347", label: "Building land",           extrudeH: 30 },
+  { code:  5, color: "#808080", label: "Road",                    extrudeH:  4 },
+  { code:  6, color: "#A0522D", label: "Railway",                 extrudeH:  5 },
+  { code:  7, color: "#FFD700", label: "Other developed",         extrudeH: 10 },
+  { code:  8, color: "#4169E1", label: "Rivers/lakes",            extrudeH:  3 },
+  { code:  9, color: "#F5DEB3", label: "Beach/coastal",           extrudeH:  2 },
+  { code: 10, color: "#1E90FF", label: "Sea/ocean",               extrudeH:  2 },
+  { code: 11, color: "#90EE90", label: "Golf course",             extrudeH:  8 },
+  { code: 12, color: "#20B2AA", label: "Other natural",           extrudeH:  5 },
+  { code: 13, color: "#7CFC00", label: "Parks/sports",            extrudeH:  8 },
+  { code: 14, color: "#CD853F", label: "Industrial/warehouse",    extrudeH: 35 },
+  { code: 15, color: "#DA70D6", label: "Commercial",              extrudeH: 30 },
+  { code: 16, color: "#FF8C00", label: "Public facilities",       extrudeH: 20 },
+  { code: 17, color: "#40E0D0", label: "Mixed use",               extrudeH: 18 },
+  { code: 21, color: "#9370DB", label: "Special zone",            extrudeH: 12 },
+];
+const TOCHICD_BY_CODE = Object.fromEntries(TOCHICD_LEGEND.map(e => [e.code, e]));
+
+const LAYER_SEP_M = 400;
+let separatedMode = false;
+let viewer;
+let manifest = null;
+const landuseSources = {};
+const landuseColors  = {};
+const landuseExtH    = {};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+let statusTimer;
+function showStatus(msg, ms = 3000) {
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.style.display = "block";
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => el.style.display = "none", ms);
+}
+
+function flyToIsland() {
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(124.205, 24.470, 40000),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-45), roll: 0 },
+    duration: 1.5,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Separate layers toggle
+// ---------------------------------------------------------------------------
+function toggleSeparation(btn) {
+  separatedMode = !separatedMode;
+  btn.classList.toggle("active", separatedMode);
+  btn.title = separatedMode ? "Collapse to ground" : "Separate layers in 3D space";
+
+  const luIds = Object.keys(landuseSources);
+  luIds.forEach((id, idx) => {
+    const src    = landuseSources[id];
+    const extMap = landuseExtH[id] || {};
+    const baseH  = separatedMode ? LAYER_SEP_M * (idx + 1) : 0;
+    src.entities.values.forEach(entity => {
+      if (!entity.polygon) return;
+      const origExt = extMap[entity.id] ?? 8;
+      if (separatedMode) {
+        entity.polygon.heightReference         = Cesium.HeightReference.NONE;
+        entity.polygon.extrudedHeightReference = Cesium.HeightReference.NONE;
+        entity.polygon.height         = baseH;
+        entity.polygon.extrudedHeight = baseH + origExt;
+      } else {
+        entity.polygon.heightReference         = Cesium.HeightReference.CLAMP_TO_GROUND;
+        entity.polygon.extrudedHeightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+        entity.polygon.height         = 0;
+        entity.polygon.extrudedHeight = origExt;
+      }
+    });
+  });
+
+  if (separatedMode) {
+    const topM = LAYER_SEP_M * (luIds.length + 1);
+    const sa = manifest.survey_area;
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(sa.center_lon, sa.center_lat - 0.04, topM + 8000),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 },
+      duration: 1.5,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Legend
+// ---------------------------------------------------------------------------
+function buildLegend(activeCodes) {
+  const items = document.getElementById("legend-items");
+  items.innerHTML = "";
+  TOCHICD_LEGEND.forEach(e => {
+    if (!activeCodes.has(e.code)) return;
+    const row = document.createElement("div");
+    row.className = "legend-row";
+    row.innerHTML = `<div class="legend-swatch" style="background:${e.color};"></div>
+                     <span class="legend-label">${e.label}</span>`;
+    items.appendChild(row);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Load one land use layer
+// ---------------------------------------------------------------------------
+async function addLanduseLayer(rec) {
+  if (landuseSources[rec.id]) return;
+  showStatus(`Loading land use ${rec.year_label}…`, 20000);
+  try {
+    const now = Cesium.JulianDate.now();
+    // Always load from the local GeoJSON — ion strips custom properties (fill_color, TOCHICD)
+    // during its tiling pipeline, losing all colour information.
+    const loadUrl = rec.geojson_url;
+    if (!loadUrl) { console.warn("No source for", rec.id); return; }
+
+    const source = await Cesium.GeoJsonDataSource.load(loadUrl, {
+      stroke: Cesium.Color.WHITE.withAlpha(0.3),
+      strokeWidth: 1,
+      fill: Cesium.Color.WHITE.withAlpha(0),
+    });
+
+    const colorMap = {};
+    const extHMap  = {};
+    const activeCodes = new Set();
+    let colored = 0;
+
+    source.entities.values.forEach(entity => {
+      const props = entity.properties;
+      const code  = props?.TOCHICD?.getValue(now);
+      const entry = TOCHICD_BY_CODE[Number(code)];
+      const hex   = entry ? entry.color : ((props?.fill_color?.getValue(now)) ?? "#CCCCCC");
+      const extH  = entry ? entry.extrudeH : 8;
+      colorMap[entity.id] = hex;
+      extHMap[entity.id]  = extH;
+      if (code != null) activeCodes.add(Number(code));
+
+      if (entity.polygon) {
+        try {
+          entity.polygon.material                = Cesium.Color.fromCssColorString(hex).withAlpha(0.6);
+          entity.polygon.outline                 = true;
+          entity.polygon.outlineColor            = Cesium.Color.WHITE.withAlpha(0.15);
+          entity.polygon.outlineWidth            = 1;
+          entity.polygon.heightReference         = Cesium.HeightReference.CLAMP_TO_GROUND;
+          entity.polygon.extrudedHeight          = extH;
+          entity.polygon.extrudedHeightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+          colored++;
+        } catch (e) { /* skip bad color */ }
+      }
+    });
+
+    console.log(`${rec.id}: ${colored} polygons colored, ${activeCodes.size} TOCHICD codes`);
+    landuseColors[rec.id] = colorMap;
+    landuseExtH[rec.id]   = extHMap;
+    source.show = true;
+    await viewer.dataSources.add(source);
+    landuseSources[rec.id] = source;
+    buildLegend(activeCodes);
+    showStatus(`Loaded ${rec.year_label} (${colored} polygons)`, 4000);
+  } catch (e) {
+    console.error("Failed to load landuse", rec.id, e);
+    showStatus(`Error loading ${rec.year_label}`, 4000);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Toolbar layer cards
+// ---------------------------------------------------------------------------
+function buildToolbar() {
+  const content = document.getElementById("layerContent");
+  content.innerHTML = "";
+
+  if (!manifest.landuse_layers.length) {
+    content.innerHTML = '<span style="color:#5a4880;font-size:12px;">No land use layers</span>';
+    return;
+  }
+
+  manifest.landuse_layers.forEach(rec => {
+    const card = document.createElement("div");
+    card.className = "layer-card";
+    card.innerHTML = `
+      <input type="checkbox" id="lu_${rec.id}" checked>
+      <label for="lu_${rec.id}">${rec.year_label} (${rec.calendar_year})</label>
+      <input type="range" min="0" max="100" value="60" title="Opacity">
+    `;
+
+    const cb    = card.querySelector("input[type=checkbox]");
+    const range = card.querySelector("input[type=range]");
+
+    cb.addEventListener("change", () => {
+      if (landuseSources[rec.id]) landuseSources[rec.id].show = cb.checked;
+    });
+
+    range.addEventListener("input", () => {
+      const alpha = range.value / 100;
+      const src = landuseSources[rec.id];
+      if (!src) return;
+      const now = Cesium.JulianDate.now();
+      const colorMap = landuseColors[rec.id] || {};
+      src.entities.values.forEach(e => {
+        if (!e.polygon) return;
+        const hex = colorMap[e.id] || "#CCCCCC";
+        try { e.polygon.material = Cesium.Color.fromCssColorString(hex).withAlpha(alpha); }
+        catch (_) {}
+      });
+    });
+
+    content.appendChild(card);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+async function init() {
+  try {
+    const resp = await fetch("manifest.json");
+    manifest = await resp.json();
+  } catch (e) {
+    manifest = {
+      use_ion: false, cesium_ion_token: "",
+      survey_area: { center_lon: 124.205, center_lat: 24.470, default_altitude_m: 15000 },
+      landuse_layers: [],
+    };
+  }
+
+  if (manifest.cesium_ion_token && manifest.cesium_ion_token.length > 20) {
+    Cesium.Ion.defaultAccessToken = manifest.cesium_ion_token;
+  }
+
+  viewer = new Cesium.Viewer("cesiumContainer", {
+    baseLayerPicker: false,
+    navigationHelpButton: false,
+    homeButton: false,
+    sceneModePicker: false,
+    animation: false,
+    timeline: false,
+    fullscreenButton: false,
+    geocoder: false,
+    infoBox: true,
+    selectionIndicator: true,
+    scene3DOnly: true,
+  });
+
+  // No base imagery — dark globe so only the land use data is visible
+  viewer.imageryLayers.removeAll();
+  viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#060912");
+
+  // World terrain for 3D pivot navigation
+  try {
+    viewer.terrainProvider = await Cesium.createWorldTerrainAsync();
+  } catch (e) {
+    console.warn("World terrain unavailable:", e);
+  }
+
+  // Start tilted over Ishigaki
+  const sa = manifest.survey_area;
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(sa.center_lon, sa.center_lat, 40000),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-45), roll: 0 },
+  });
+
+  buildToolbar();
+
+  for (const rec of (manifest.landuse_layers || [])) {
+    await addLanduseLayer(rec);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

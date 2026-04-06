@@ -357,6 +357,32 @@ def main():
     except Exception:
         pass
 
+    # ---------------------------------------------------
+    # OPTIONAL: Run Cesium pipeline after batch completes
+    # Set CESIUM_PIPELINE_ENABLED = True and update the
+    # config path below to enable automatic upload.
+    # ---------------------------------------------------
+    CESIUM_PIPELINE_ENABLED = False
+    CESIUM_PIPELINE_SCRIPT  = r"C:\Users\Aruma\OneDrive\Documents\GitHub\neoreef\cesium_pipeline.py"
+    CESIUM_CONFIG_PATH      = r"C:\Users\Aruma\OneDrive\Documents\GitHub\neoreef\cesium_config.json"
+
+    if CESIUM_PIPELINE_ENABLED:
+        import subprocess
+        try:
+            log("Running Cesium pipeline post-processing...")
+            result = subprocess.run(
+                [sys.executable, CESIUM_PIPELINE_SCRIPT,
+                 "--config", CESIUM_CONFIG_PATH,
+                 "--stage", "all"],
+                capture_output=True, text=True, timeout=3600
+            )
+            log(result.stdout)
+            if result.returncode != 0:
+                log(f"  WARNING: Cesium pipeline exited with code {result.returncode}")
+                log(result.stderr)
+        except Exception as e:
+            log(f"  WARNING: Could not run Cesium pipeline: {e}")
+
     return 0
 
 

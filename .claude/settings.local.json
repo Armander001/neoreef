@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(xxd:*)",
+      "Bash(python3:*)",
+      "Bash(where conda:*)",
+      "Read(//c/Users/Aruma/miniconda3/Scripts/**)",
+      "Read(//c/Users/Aruma/anaconda3/Scripts/**)",
+      "Read(//c/ProgramData/miniconda3/Scripts/**)",
+      "Read(//c//**)",
+      "Bash(python -c \"from osgeo import gdal; print\\(''''GDAL OK'''', gdal.__version__\\)\")",
+      "Bash(python -c \"import rasterio; print\\(''''rasterio OK''''\\)\")",
+      "Bash(python -c \"import geopandas; print\\(''''geopandas OK''''\\)\")",
+      "Bash(python:*)",
+      "WebFetch(domain:cesium.com)",
+      "Bash(tasklist /FI 'IMAGENAME eq python.exe' /FO CSV)",
+      "Bash(tasklist)",
+      "Bash(wmic process:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}

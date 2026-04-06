@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeoReef — Ortho Viewer</title>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #060912; }
+
+    #cesiumContainer {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      bottom: 60px;
+    }
+
+    /* ── Bottom toolbar ── */
+    #toolbar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 60px;
+      background: rgba(6, 9, 18, 0.96);
+      border-top: 1px solid rgba(126,200,227,0.18);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 8px;
+      z-index: 200;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    #toolbar::-webkit-scrollbar { height: 4px; }
+    #toolbar::-webkit-scrollbar-thumb { background: rgba(126,200,227,0.3); border-radius: 2px; }
+
+    .tb-btn {
+      flex-shrink: 0;
+      background: rgba(126,200,227,0.10);
+      border: 1px solid rgba(126,200,227,0.40);
+      color: #7ec8e3;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .tb-btn:hover  { background: rgba(126,200,227,0.22); }
+    .tb-btn.active { background: rgba(126,200,227,0.28); border-color: rgba(126,200,227,0.80); }
+
+    .tb-divider {
+      flex-shrink: 0;
+      width: 1px;
+      height: 36px;
+      background: rgba(126,200,227,0.15);
+      margin: 0 2px;
+    }
+
+    /* Layer card */
+    .layer-card {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(126,200,227,0.06);
+      border: 1px solid rgba(126,200,227,0.18);
+      border-radius: 6px;
+      padding: 4px 10px;
+      height: 44px;
+    }
+    .layer-card.no-source {
+      opacity: 0.45;
+      border-style: dashed;
+    }
+    .layer-card label { color: #7ec8e3; font-size: 12px; cursor: pointer; user-select: none; }
+    .layer-card .tag {
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .tag-drone  { background: rgba(126,200,227,0.2); color: #7ec8e3; }
+    .tag-coral  { background: rgba(255,140,80,0.2);  color: #ff9f6b; }
+    .tag-warn   { background: rgba(255,80,80,0.15);  color: #ff7070; }
+    .layer-card input[type=checkbox] { accent-color: #7ec8e3; cursor: pointer; }
+    .layer-card input[type=range] {
+      width: 70px; height: 3px; accent-color: #7ec8e3; cursor: pointer;
+    }
+    .fly-btn {
+      background: none; border: none; color: #4a8fa8;
+      cursor: pointer; font-size: 14px; padding: 0 2px;
+      transition: color 0.15s;
+    }
+    .fly-btn:hover { color: #7ec8e3; }
+
+    /* ── Status toast ── */
+    #status {
+      position: absolute;
+      bottom: 70px; left: 50%; transform: translateX(-50%);
+      background: rgba(6, 9, 18, 0.92);
+      border: 1px solid rgba(126,200,227,0.25);
+      color: #7ec8e3;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      display: none;
+      z-index: 300;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <div id="cesiumContainer"></div>
+
+  <div id="toolbar">
+    <button class="tb-btn" onclick="flyToIsland()">&#9671; Fly to Ishigaki</button>
+    <div class="tb-divider"></div>
+    <div id="layerContent" style="display:flex;align-items:center;gap:6px;">
+      <span style="color:#2a4a5a;font-size:12px;">Loading…</span>
+    </div>
+  </div>
+
+  <div id="status"></div>
+
+<script>
+let viewer;
+let manifest = null;
+const orthoLayers = {};
+
+function setOrthoAlpha(layer, alpha) {
+  if (!layer) return;
+  if (layer.appearance) {
+    layer.appearance.material.uniforms.color = new Cesium.Color(1, 1, 1, alpha);
+  } else {
+    layer.alpha = alpha;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+let statusTimer;
+function showStatus(msg, ms = 3000) {
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.style.display = "block";
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => el.style.display = "none", ms);
+}
+
+function bboxToRect(bbox) {
+  return bbox ? Cesium.Rectangle.fromDegrees(bbox[0], bbox[1], bbox[2], bbox[3]) : null;
+}
+
+function flyToIsland() {
+  const sa = manifest?.survey_area;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(
+      sa?.center_lon ?? 124.205, sa?.center_lat ?? 24.470, 15000
+    ),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-45), roll: 0 },
+    duration: 1.5,
+  });
+}
+
+function flyToOrtho(rec) {
+  if (!rec.bbox_wgs84) { showStatus("No location data for " + rec.survey_name); return; }
+  const [w, s, e, n] = rec.bbox_wgs84;
+  viewer.camera.flyTo({
+    destination: Cesium.Rectangle.fromDegrees(w, s, e, n),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+    duration: 1.5,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Load a single ortho layer
+// ---------------------------------------------------------------------------
+async function addOrthoLayer(rec) {
+  if (orthoLayers[rec.survey_name]) return orthoLayers[rec.survey_name];
+  const hasLocal = rec.bbox_wgs84 && (rec.preview_url || rec.cog_url);
+  const hasIon   = manifest.use_ion && rec.ion_asset_id != null && !hasLocal;
+  if (!hasIon && !hasLocal) return null;
+
+  showStatus("Loading " + rec.survey_name + "…", 20000);
+  try {
+    if (hasLocal) {
+      const imgUrl = rec.preview_url ?? rec.cog_url;
+      const primitive = new Cesium.GroundPrimitive({
+        geometryInstances: new Cesium.GeometryInstance({
+          geometry: new Cesium.RectangleGeometry({
+            rectangle: bboxToRect(rec.bbox_wgs84),
+            vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT,
+          }),
+        }),
+        appearance: new Cesium.EllipsoidSurfaceAppearance({
+          material: Cesium.Material.fromType('Image', {
+            image: imgUrl,
+            repeat: new Cesium.Cartesian2(1.0, 1.0),
+          }),
+          aboveGround: false,
+        }),
+        classificationType: Cesium.ClassificationType.BOTH,
+      });
+      viewer.scene.primitives.add(primitive);
+      orthoLayers[rec.survey_name] = primitive;
+      showStatus("Loaded " + rec.survey_name, 3000);
+      return primitive;
+    }
+    const provider = await Cesium.IonImageryProvider.fromAssetId(rec.ion_asset_id);
+    const layer = viewer.imageryLayers.addImageryProvider(provider);
+    layer.show  = true;
+    layer.alpha = 1.0;
+    orthoLayers[rec.survey_name] = layer;
+    showStatus("Loaded " + rec.survey_name, 3000);
+    return layer;
+  } catch (e) {
+    console.error("Ortho load failed:", rec.survey_name, e);
+    showStatus("Failed to load " + rec.survey_name, 4000);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Build toolbar layer cards
+// ---------------------------------------------------------------------------
+function buildToolbar() {
+  const content = document.getElementById("layerContent");
+  content.innerHTML = "";
+
+  const orthos = manifest.orthomosaics ?? [];
+  if (!orthos.length) {
+    content.innerHTML = '<span style="color:#2a4a5a;font-size:12px;">No ortho layers in manifest</span>';
+    return;
+  }
+
+  orthos.forEach(rec => {
+    const hasSource = rec.bbox_wgs84 && (rec.preview_url || rec.cog_url)
+                   || (manifest.use_ion && rec.ion_asset_id != null && !rec.bbox_wgs84);
+    const tagClass  = rec.ortho_type === "coral" ? "tag-coral" : "tag-drone";
+    const tagLabel  = rec.ortho_type === "coral" ? "coral" : "drone";
+
+    const card = document.createElement("div");
+    card.className = "layer-card" + (hasSource ? "" : " no-source");
+    card.innerHTML = `
+      <input type="checkbox" id="cb_${rec.survey_name}" ${hasSource ? "checked" : "disabled"}>
+      <label for="cb_${rec.survey_name}">${rec.survey_name}</label>
+      <span class="tag ${hasSource ? tagClass : 'tag-warn'}">${hasSource ? tagLabel : "no GPS"}</span>
+      ${rec.bbox_wgs84 ? `<button class="fly-btn" title="Fly to survey area">&#9654;</button>` : ""}
+      ${hasSource ? `<input type="range" min="0" max="100" value="100" title="Opacity">` : ""}
+    `;
+
+    if (hasSource) {
+      const cb    = card.querySelector("input[type=checkbox]");
+      const range = card.querySelector("input[type=range]");
+      const flyB  = card.querySelector(".fly-btn");
+
+      cb.addEventListener("change", () => {
+        if (orthoLayers[rec.survey_name]) {
+          orthoLayers[rec.survey_name].show = cb.checked;
+        }
+      });
+
+      range?.addEventListener("input", () => {
+        setOrthoAlpha(orthoLayers[rec.survey_name], range.value / 100);
+      });
+
+      flyB?.addEventListener("click", () => flyToOrtho(rec));
+    }
+
+    content.appendChild(card);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+async function init() {
+  try {
+    const resp = await fetch("manifest.json");
+    manifest   = await resp.json();
+  } catch (e) {
+    manifest = {
+      use_ion: false, cesium_ion_token: "",
+      survey_area: { center_lon: 124.205, center_lat: 24.470, default_altitude_m: 15000 },
+      orthomosaics: [],
+    };
+  }
+
+  if (manifest.cesium_ion_token?.length > 20) {
+    Cesium.Ion.defaultAccessToken = manifest.cesium_ion_token;
+  }
+
+  // imageryProvider: false — prevents the default Bing Maps (asset 2) 404 request
+  viewer = new Cesium.Viewer("cesiumContainer", {
+    baseLayerPicker:       false,
+    navigationHelpButton:  false,
+    homeButton:            false,
+    sceneModePicker:       false,
+    animation:             false,
+    timeline:              false,
+    fullscreenButton:      false,
+    geocoder:              false,
+    infoBox:               false,
+    selectionIndicator:    false,
+    scene3DOnly:           true,
+    imageryProvider:       false,
+  });
+
+  // Dark globe — no base imagery, ortho layers appear against black
+  viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#060912");
+
+  // World terrain for 3D pivot navigation
+  try {
+    viewer.terrainProvider = await Cesium.createWorldTerrainAsync();
+  } catch (e) {
+    console.warn("World terrain unavailable:", e);
+  }
+
+  // Start tilted over Ishigaki
+  const sa = manifest.survey_area;
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(
+      sa?.center_lon ?? 124.205, sa?.center_lat ?? 24.470, 15000
+    ),
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-45), roll: 0 },
+  });
+
+  buildToolbar();
+
+  // Auto-load all ortho layers
+  for (const rec of (manifest.orthomosaics ?? [])) {
+    await addOrthoLayer(rec);
+    // Fly to the first layer that has a location
+    if (rec.bbox_wgs84 && Object.keys(orthoLayers).length === 1) {
+      flyToOrtho(rec);
+    }
+  }
+}
+
+init();
+</script>
+</body>
+</html>

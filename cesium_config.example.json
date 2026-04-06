@@ -1,0 +1,18 @@
+{
+  "_comment": "Copy this file to cesium_config.json and fill in your values. cesium_config.json is gitignored.",
+
+  "OUTPUT_BASE": "D:/Armando/Processed_Projects",
+  "LANDUSE_DIR": "C:/Users/Aruma/OneDrive/Documents/NAKAMURA LABS/LANDUSE",
+  "CESIUM_OUTPUT_DIR": "D:/Armando/Processed_Projects/cesium_output",
+
+  "CESIUM_ION_TOKEN": "YOUR_ION_ACCESS_TOKEN_HERE",
+  "USE_ION": true,
+
+  "LOCAL_SERVER_PORT": 8765,
+
+  "SHAPEFILE_FALLBACK_CRS": "EPSG:6685",
+
+  "SURVEY_PATTERN": "^Ishi(?:\\d{2})_S\\d{3}_\\d{4}_A\\d$",
+
+  "CONTINUE_ON_ERROR": true
+}
