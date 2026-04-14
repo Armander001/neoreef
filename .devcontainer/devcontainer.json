@@ -1,0 +1,50 @@
+{
+    "name": "NeoReef Dev Container",
+    "image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
+    "features": {
+        "ghcr.io/devcontainers/features/conda:1": {},
+        "ghcr.io/devcontainers/features/node:1": {}
+    },
+    "onCreateCommand": "conda install -y -c conda-forge rasterio geopandas fiona && pip install requests boto3 && npm install -g @anthropic-ai/claude-code",
+
+    // Port forwarding: Claude Code uses 54545 for OAuth callbacks; add others as needed
+    "forwardPorts": [54545],
+    "portsAttributes": {
+        "54545": {
+            "label": "Claude Code OAuth",
+            "onAutoForward": "silent"
+        }
+    },
+
+    // Proxy: pulled from host environment variables — only active when set on the host.
+    // In your lab, set HTTP_PROXY=http://proxy.noc.titech.ac.jp:3128 on your host machine.
+    // Outside the lab, leave those host vars unset and no proxy will be applied.
+    "remoteEnv": {
+        "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
+        "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
+        "NO_PROXY": "${localEnv:NO_PROXY:localhost,127.0.0.1}",
+        "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
+    },
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.pylint",
+                "ms-toolsai.jupyter"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "/opt/conda/bin/python",
+                "terminal.integrated.env.linux": {
+                    "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
+                    "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
+                    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
+                }
+            }
+        }
+    },
+    "workspaceFolder": "/workspaces/neoreef",
+    "remoteUser": "vscode"
+}
+
+

@@ -1,0 +1,30 @@
+Usefull snippets:
+
+testing claude connection in bash
+$ curl -x http://proxy.noc.titech.ac.jp:3128 https://api.anthropic.com/
+
+
+$ export http_proxy=http://proxy.noc.titech.ac.jp:3128
+$ export https_proxy=http://proxy.noc.titech.ac.jp:3128
+
+
+
+
+$env:HTTPS_PROXY="http://proxy.noc.titech.ac.jp:3128"
+$env:HTTP_PROXY="http://proxy.noc.titech.ac.jp:3128"
+claude
+
+
+
+
+ i need a .devcontainer/devcontainer.json file in my repo under:                                  
+C:\Users\Aruma\OneDrive\Documents\GitHub\neoreef  another thing i am not seeing these files being  
+updates in my vs code file explorer as you are creating and editing these files. I have just       
+installed docker and the dev container extension. 
+
+
+
+
+$env:HTTPS_PROXY="http://proxy.noc.titech.ac.jp:3128"
+$env:HTTP_PROXY="http://proxy.noc.titech.ac.jp:3128"
+claude
