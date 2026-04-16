@@ -17,7 +17,8 @@
       "Bash(tasklist /FI 'IMAGENAME eq python.exe' /FO CSV)",
       "Bash(tasklist)",
       "Bash(wmic process:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git *)"
     ]
   }
 }

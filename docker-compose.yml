@@ -1,0 +1,41 @@
+# NeoReef Docker Compose
+#
+# Start the web server:
+#   docker compose up -d nginx
+#
+# Run the data pipeline (on-demand, not a persistent service):
+#   docker compose run --rm pipeline --config /app/config/cesium_config.json --stage all
+#
+# View logs:
+#   docker compose logs -f nginx
+
+services:
+  # --- Web server (always running) ---
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "${NEOREEF_PORT:-80}:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./cesium_viewer.html:/srv/neoreef/cesium_viewer.html:ro
+      - ./ortho_viewer.html:/srv/neoreef/ortho_viewer.html:ro
+      - ./landuse_viewer.html:/srv/neoreef/landuse_viewer.html:ro
+      - pipeline-output:/srv/neoreef:ro
+    restart: unless-stopped
+
+  # --- Data pipeline (run on demand) ---
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+    volumes:
+      - pipeline-output:/app/output
+      - ${DATA_SOURCE_DIR:-.}:/app/input:ro
+      - ./cesium_config.json:/app/config/cesium_config.json:ro
+    profiles: ["pipeline"]
+
+volumes:
+  pipeline-output:

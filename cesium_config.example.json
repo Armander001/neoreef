@@ -10,6 +10,9 @@
 
   "LOCAL_SERVER_PORT": 8765,
 
+  "_comment_server_url": "Leave empty for relative URLs (works when viewers+data are co-hosted). Set to full URL like 'http://163.220.179.199/neoreef' when data is on a different origin.",
+  "SERVER_BASE_URL": "",
+
   "SHAPEFILE_FALLBACK_CRS": "EPSG:6685",
 
   "SURVEY_PATTERN": "^Ishi(?:\\d{2})_S\\d{3}_\\d{4}_A\\d$",

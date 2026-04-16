@@ -98,6 +98,23 @@ class LanduseRecord:
         return d
 
 
+@dataclass
+class Model3DRecord:
+    survey_name: str
+    model_type: str           # "mesh" | "pointcloud"
+    src_path: Path
+    format: str = ""          # "3dtiles" | "gltf" | "glb"
+    output_path: Optional[Path] = None
+    ion_asset_id: Optional[int] = None
+    position: Optional[dict] = None   # {"lon": ..., "lat": ..., "height": ...}
+
+    def to_dict(self):
+        d = asdict(self)
+        d["src_path"] = str(self.src_path)
+        d["output_path"] = str(self.output_path) if self.output_path else None
+        return d
+
+
 # ---------------------------------------------------------------------------
 # Logging  (mirrors NeoReef_batch.py pattern)
 # ---------------------------------------------------------------------------
@@ -134,6 +151,7 @@ def load_config(config_path: str) -> dict:
     cfg.setdefault("CONTINUE_ON_ERROR", True)
     cfg.setdefault("USE_ION", True)
     cfg.setdefault("LOCAL_SERVER_PORT", 8765)
+    cfg.setdefault("SERVER_BASE_URL", "")
     return cfg
 
 
@@ -448,6 +466,72 @@ def batch_process_landuse(landuse_dir: str, out_dir: Path,
 
 
 # ---------------------------------------------------------------------------
+# Stage 3b — scan_3d_models
+# ---------------------------------------------------------------------------
+def scan_3d_models(models_dir: str, out_dir: Path, log,
+                   extra_models: list = None) -> List[Model3DRecord]:
+    """Scan for 3D model files (glTF, glB, 3D Tiles) and copy them to the output dir."""
+    records: List[Model3DRecord] = []
+    base = Path(models_dir) if models_dir else None
+
+    if base and base.exists():
+        models_out = out_dir / "models"
+        models_out.mkdir(parents=True, exist_ok=True)
+        import shutil
+
+        # Look for glTF/glB files
+        for ext in ("*.glb", "*.gltf"):
+            for f in sorted(base.rglob(ext)):
+                survey_name = f.stem
+                dst = models_out / f.name
+                if not dst.exists():
+                    shutil.copy2(str(f), str(dst))
+                    log.info(f"  3D model copied: {f.name}")
+                records.append(Model3DRecord(
+                    survey_name=survey_name,
+                    model_type="mesh",
+                    src_path=f,
+                    format=f.suffix.lstrip("."),
+                    output_path=dst,
+                ))
+
+        # Look for 3D Tiles (tileset.json)
+        for ts in sorted(base.rglob("tileset.json")):
+            survey_name = ts.parent.name
+            dst_dir = models_out / survey_name
+            if not dst_dir.exists():
+                shutil.copytree(str(ts.parent), str(dst_dir))
+                log.info(f"  3D Tiles copied: {survey_name}/")
+            records.append(Model3DRecord(
+                survey_name=survey_name,
+                model_type="mesh",
+                src_path=ts,
+                format="3dtiles",
+                output_path=dst_dir / "tileset.json",
+            ))
+
+    # Explicit extras from config
+    for entry in (extra_models or []):
+        p = Path(entry["path"])
+        name = entry.get("survey_name", p.stem)
+        if not p.exists():
+            log.warning(f"  EXTRA_3D_MODEL not found: {p}")
+            continue
+        records.append(Model3DRecord(
+            survey_name=name,
+            model_type=entry.get("model_type", "mesh"),
+            src_path=p,
+            format=entry.get("format", p.suffix.lstrip(".")),
+            output_path=p,
+            position=entry.get("position"),
+        ))
+        log.info(f"  Added extra 3D model: {name}")
+
+    log.info(f"Found {len(records)} 3D model(s)")
+    return records
+
+
+# ---------------------------------------------------------------------------
 # Stage 4 — ion_upload
 # Per https://cesium.com/learn/ion/ion-upload-rest/ the 4-step flow is:
 #   1. POST /v1/assets  → get assetMetadata, uploadLocation, onComplete
@@ -703,7 +787,9 @@ def write_manifest(ortho_records: List[OrthoRecord],
                    use_ion: bool,
                    local_port: int,
                    log,
-                   known_ion_assets: dict = None) -> Path:
+                   known_ion_assets: dict = None,
+                   server_base_url: str = "",
+                   model3d_records: List[Model3DRecord] = None) -> Path:
     manifest = {
         "generated": datetime.utcnow().isoformat() + "Z",
         "cesium_ion_token": ion_token if use_ion else "",
@@ -718,9 +804,15 @@ def write_manifest(ortho_records: List[OrthoRecord],
         },
         "orthomosaics": [],
         "landuse_layers": [],
+        "models_3d": [],
     }
 
-    base_url = f"http://localhost:{local_port}"
+    # Use relative URLs by default (works when viewers and data are co-hosted).
+    # Override with SERVER_BASE_URL for cross-origin deployments.
+    if server_base_url:
+        base_url = server_base_url.rstrip("/")
+    else:
+        base_url = ""  # relative URLs
     known = known_ion_assets or {}
 
     for rec in ortho_records:
@@ -732,7 +824,7 @@ def write_manifest(ortho_records: List[OrthoRecord],
             "ortho_type": rec.ortho_type,
             "bbox_wgs84": list(rec.bbox_wgs84) if rec.bbox_wgs84 else None,
             "ion_asset_id": asset_id,
-            "cog_url": f"{base_url}/cogs/{rec.survey_name}_cog.tif" if rec.cog_path else None,
+            "cog_url": f"{base_url + '/' if base_url else ''}cogs/{rec.survey_name}_cog.tif" if rec.cog_path else None,
         }
         manifest["orthomosaics"].append(entry)
 
@@ -746,27 +838,49 @@ def write_manifest(ortho_records: List[OrthoRecord],
             "calendar_year": rec.calendar_year,
             "feature_count": rec.feature_count,
             "ion_asset_id": asset_id,
-            "geojson_url": f"{base_url}/landuse/landuse_{rec.year_label}.geojson" if rec.geojson_path else None,
+            "geojson_url": f"{base_url + '/' if base_url else ''}landuse/landuse_{rec.year_label}.geojson" if rec.geojson_path else None,
         }
         manifest["landuse_layers"].append(entry)
+
+    for rec in (model3d_records or []):
+        prefix = base_url + "/" if base_url else ""
+        if rec.format == "3dtiles":
+            url_key = "tileset_url"
+            url_val = f"{prefix}models/{rec.survey_name}/tileset.json" if rec.output_path else None
+        else:
+            url_key = "gltf_url"
+            url_val = f"{prefix}models/{rec.output_path.name}" if rec.output_path else None
+        entry = {
+            "id": f"{rec.survey_name}_{rec.model_type}",
+            "survey_name": rec.survey_name,
+            "model_type": rec.model_type,
+            "format": rec.format,
+            url_key: url_val,
+            "ion_asset_id": rec.ion_asset_id,
+            "position": rec.position,
+        }
+        manifest["models_3d"].append(entry)
 
     out_path = out_dir / "manifest.json"
     with open(str(out_path), "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
     log.info(f"Manifest written: {out_path}")
 
-    # Copy viewer HTML into the output dir so it can be served alongside manifest.json
+    # Copy viewer HTML files into the output dir so they can be served alongside manifest.json
     # Opening the HTML via file:// breaks fetch(); it must be served via HTTP.
-    viewer_src = Path(__file__).parent / "cesium_viewer.html"
-    viewer_dst = out_dir / "cesium_viewer.html"
-    if viewer_src.exists():
-        import shutil
-        shutil.copy2(str(viewer_src), str(viewer_dst))
-        log.info(f"Viewer copied to: {viewer_dst}")
-        log.info(f"Open viewer at:   http://localhost:{local_port}/cesium_viewer.html")
-        log.info(f"  (run --stage serve first to start the local server)")
-    else:
-        log.warning(f"cesium_viewer.html not found at {viewer_src} — copy it manually to {out_dir}")
+    import shutil
+    repo_dir = Path(__file__).parent
+    viewer_files = ["cesium_viewer.html", "ortho_viewer.html", "landuse_viewer.html"]
+    for vf in viewer_files:
+        src = repo_dir / vf
+        dst = out_dir / vf
+        if src.exists():
+            shutil.copy2(str(src), str(dst))
+            log.info(f"Viewer copied: {dst}")
+        else:
+            log.warning(f"{vf} not found at {src}")
+    log.info(f"Open viewer at: http://localhost:{local_port}/cesium_viewer.html")
+    log.info(f"  (run --stage serve first to start the local server)")
 
     return out_path
 
@@ -788,8 +902,9 @@ class _CORSHandler(SimpleHTTPRequestHandler):
 
 def start_local_server(serve_dir: Path, port: int, log):
     os.chdir(str(serve_dir))
-    server = HTTPServer(("localhost", port), _CORSHandler)
-    log.info(f"Local server started at http://localhost:{port}  (serving {serve_dir})")
+    server = HTTPServer(("0.0.0.0", port), _CORSHandler)
+    log.info(f"Local server started at http://0.0.0.0:{port}  (serving {serve_dir})")
+    log.info(f"  LAN access: http://<your-ip>:{port}/cesium_viewer.html")
     log.info("Press Ctrl+C to stop.")
     try:
         server.serve_forever()
@@ -807,7 +922,7 @@ def main():
     parser.add_argument("--config", default="cesium_config.json",
                         help="Path to cesium_config.json")
     parser.add_argument("--stage", default="all",
-                        choices=["all", "cog", "landuse", "upload", "serve", "manifest"],
+                        choices=["all", "cog", "landuse", "model3d", "upload", "serve", "manifest"],
                         help="Pipeline stage to run")
     parser.add_argument("--port", type=int, default=None,
                         help="Override LOCAL_SERVER_PORT from config")
@@ -830,6 +945,7 @@ def main():
 
     ortho_records: List[OrthoRecord] = []
     landuse_records: List[LanduseRecord] = []
+    model3d_records: List[Model3DRecord] = []
 
     # ---- Stage: cog --------------------------------------------------------
     if args.stage in ("all", "cog"):
@@ -850,6 +966,14 @@ def main():
         landuse_records = batch_process_landuse(
             cfg["LANDUSE_DIR"], out_dir,
             cfg["SHAPEFILE_FALLBACK_CRS"], log, cont
+        )
+
+    # ---- Stage: model3d ----------------------------------------------------
+    if args.stage in ("all", "model3d"):
+        log.info("--- Stage: 3D models ---")
+        model3d_records = scan_3d_models(
+            cfg.get("MODELS_3D_DIR", ""), out_dir, log,
+            extra_models=cfg.get("EXTRA_3D_MODELS", [])
         )
 
     # ---- Stage: upload ------------------------------------------------------
@@ -911,9 +1035,17 @@ def main():
                 cfg["LANDUSE_DIR"], out_dir,
                 cfg["SHAPEFILE_FALLBACK_CRS"], log, cont
             )
+        # Rebuild model3d records from disk if running manifest standalone
+        if not model3d_records:
+            model3d_records = scan_3d_models(
+                cfg.get("MODELS_3D_DIR", ""), out_dir, log,
+                extra_models=cfg.get("EXTRA_3D_MODELS", [])
+            )
         m_path = write_manifest(ortho_records, landuse_records, out_dir,
                                 token, use_ion, port, log,
-                                known_ion_assets=cfg.get("known_ion_assets", {}))
+                                known_ion_assets=cfg.get("known_ion_assets", {}),
+                                server_base_url=cfg.get("SERVER_BASE_URL", ""),
+                                model3d_records=model3d_records)
         # Inject base asset IDs into the written manifest
         with open(str(m_path), "r", encoding="utf-8") as f:
             mdata = json.load(f)

@@ -95,6 +95,10 @@ ORTHO_BIGTIFF          = True
 # Quality for the shareable JPEG preview (1-100)
 JPEG_QUALITY = 90
 
+# --- 3D model export ---------------------------------------------------------
+# Export textured mesh as glTF/glB for CesiumJS 3D viewing (set False to skip)
+EXPORT_GLTF = False
+
 # --- Coordinate system -------------------------------------------------------
 # Leave None for non-GPS / underwater surveys (uses Metashape local coords)
 SET_CRS = None
@@ -370,6 +374,20 @@ def main():
                 # Export JPEG preview
                 log(f"  [EXPORT] JPEG -> {JPEG_OUT}")
                 export_jpeg_preview(chunk, JPEG_OUT, JPEG_QUALITY, log)
+
+                # Export 3D model as glTF (optional — for CesiumJS 3D photomosaic viewing)
+                if EXPORT_GLTF and chunk.model:
+                    GLTF_OUT = os.path.join(OUTPUT_BASE, f"{survey_name}.glb")
+                    log(f"  [EXPORT] glTF -> {GLTF_OUT}")
+                    try:
+                        chunk.exportModel(
+                            GLTF_OUT,
+                            format=Metashape.ModelFormatGLTF,
+                            save_texture=True,
+                        )
+                        log("    [OK] glTF saved")
+                    except Exception as e:
+                        log(f"    WARNING: glTF export failed ({e})")
 
                 doc.save()
 

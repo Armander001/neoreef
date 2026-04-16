@@ -1,18 +1,17 @@
 {
-    "name": "NeoReef Dev Container",
+    "name": "NeoReef Dev",
     "image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
     "features": {
-        "ghcr.io/devcontainers/features/conda:1": {},
-        "ghcr.io/devcontainers/features/node:1": {}
+        "ghcr.io/devcontainers/features/conda:1": {}
     },
-    "onCreateCommand": "conda install -y -c conda-forge rasterio geopandas fiona && pip install requests boto3 && npm install -g @anthropic-ai/claude-code",
+    "onCreateCommand": "conda install -y -c conda-forge rasterio geopandas fiona && pip install requests boto3",
 
-    // Port forwarding: Claude Code uses 54545 for OAuth callbacks; add others as needed
-    "forwardPorts": [54545],
+    // Local dev server + nginx
+    "forwardPorts": [8765, 80],
     "portsAttributes": {
-        "54545": {
-            "label": "Claude Code OAuth",
-            "onAutoForward": "silent"
+        "8765": {
+            "label": "NeoReef Dev Server",
+            "onAutoForward": "notify"
         }
     },
 
@@ -22,8 +21,7 @@
     "remoteEnv": {
         "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
         "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
-        "NO_PROXY": "${localEnv:NO_PROXY:localhost,127.0.0.1}",
-        "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
+        "NO_PROXY": "${localEnv:NO_PROXY:localhost,127.0.0.1}"
     },
 
     "customizations": {
@@ -37,8 +35,7 @@
                 "python.defaultInterpreterPath": "/opt/conda/bin/python",
                 "terminal.integrated.env.linux": {
                     "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
-                    "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
-                    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
+                    "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}"
                 }
             }
         }
@@ -46,5 +43,3 @@
     "workspaceFolder": "/workspaces/neoreef",
     "remoteUser": "vscode"
 }
-
-
