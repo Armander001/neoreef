@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NeoReef — Docker Deployment Stack
+  =================================
+  nginx + pipeline containers, volumes, bind mounts, network paths.
+  Edit this file directly; it is not generated.
+
+  LAYOUT GUIDE
+  ------------
+  Canvas: 1100 x 720
+  Host filesystem (left, x = 40 .. 320)
+  Two containers (centre, x = 400 .. 720):
+     nginx (top)     y = 80  .. 320
+     pipeline (bot)  y = 360 .. 600
+  External world (right, x = 800 .. 1080) — browser, ion, proxy
+  Shared volume between containers spans the middle.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 720"
+     font-family="'Segoe UI', system-ui, sans-serif" font-size="13">
+
+  <defs>
+    <marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+    <style>
+      .py    { fill:#cfe1f2; stroke:#1e3a5f; stroke-width:1.5; }
+      .data  { fill:#cff2e1; stroke:#1e5f3a; stroke-width:1.5; }
+      .ext   { fill:#f2e1cf; stroke:#5f3a1e; stroke-width:1.5; }
+      .infra { fill:#e0e0e0; stroke:#3a3a3a; stroke-width:1.5; }
+      .vol   { fill:#fff7d6; stroke:#7d6a1e; stroke-width:1.5; }
+      .title { font-size:13px; font-weight:600; fill:#222; }
+      .sub   { font-size:10.5px; font-style:italic; fill:#555; }
+      .container-bg { fill:#f4f4f4; stroke:#3a3a3a; stroke-width:2; }
+      .host-bg   { fill:#fafaff; stroke:#444; stroke-width:1; stroke-dasharray:5 4; opacity:0.7; }
+      .flow      { fill:none; stroke:#444; stroke-width:1.5;
+                   marker-end:url(#arrow-end); }
+      .flow-dash { fill:none; stroke:#666; stroke-width:1.3;
+                   stroke-dasharray:4 4; marker-end:url(#arrow-end); }
+      .mount     { fill:none; stroke:#7d6a1e; stroke-width:1.3;
+                   stroke-dasharray:2 3; }
+    </style>
+  </defs>
+
+  <text x="550" y="32" text-anchor="middle" font-size="18" font-weight="700"
+        fill="#3a3a3a">Docker Deployment Stack</text>
+  <text x="550" y="52" text-anchor="middle" font-size="11" fill="#666">
+    docker-compose.yml: nginx (always-on) + pipeline (on-demand) — single host, on-prem
+  </text>
+
+  <!-- ============== Host filesystem ============== -->
+  <rect x="20" y="80" width="320" height="600" rx="10" class="host-bg"/>
+  <text x="180" y="102" text-anchor="middle" font-size="12" font-weight="700" fill="#444">Host filesystem (repo root)</text>
+
+  <rect x="40" y="120" width="280" height="50" rx="6" class="data"/>
+  <text x="180" y="140" text-anchor="middle" class="title">cesium_viewer.html</text>
+  <text x="180" y="158" text-anchor="middle" class="sub">+ ortho_viewer.html, landuse_viewer.html</text>
+
+  <rect x="40" y="180" width="280" height="40" rx="6" class="ext"/>
+  <text x="180" y="202" text-anchor="middle" class="title">nginx/default.conf</text>
+
+  <rect x="40" y="230" width="280" height="40" rx="6" class="ext"/>
+  <text x="180" y="252" text-anchor="middle" class="title">cesium_config.json (gitignored)</text>
+
+  <rect x="40" y="280" width="280" height="50" rx="6" class="data"/>
+  <text x="180" y="300" text-anchor="middle" class="title">${DATA_SOURCE_DIR}</text>
+  <text x="180" y="318" text-anchor="middle" class="sub">Metashape outputs + shapefiles</text>
+
+  <rect x="40" y="340" width="280" height="50" rx="6" class="py"/>
+  <text x="180" y="360" text-anchor="middle" class="title">cesium_pipeline.py</text>
+  <text x="180" y="378" text-anchor="middle" class="sub">copied into image at build time</text>
+
+  <rect x="40" y="400" width="280" height="40" rx="6" class="ext"/>
+  <text x="180" y="422" text-anchor="middle" class="title">Dockerfile.app</text>
+
+  <rect x="40" y="450" width="280" height="40" rx="6" class="ext"/>
+  <text x="180" y="472" text-anchor="middle" class="title">docker-compose.yml</text>
+
+  <rect x="40" y="500" width="280" height="60" rx="6" class="ext"/>
+  <text x="180" y="522" text-anchor="middle" class="title">Environment</text>
+  <text x="180" y="538" text-anchor="middle" class="sub">NEOREEF_PORT (default 80)</text>
+  <text x="180" y="552" text-anchor="middle" class="sub">HTTP_PROXY (campus only)</text>
+
+  <!-- ============== nginx container ============== -->
+  <rect x="400" y="80" width="320" height="240" rx="12" class="container-bg"/>
+  <text x="560" y="102" text-anchor="middle" font-size="13" font-weight="700" fill="#3a3a3a">nginx:alpine — service "nginx"</text>
+  <text x="560" y="118" text-anchor="middle" class="sub">restart: unless-stopped</text>
+
+  <rect x="420" y="135" width="280" height="40" rx="6" class="infra"/>
+  <text x="560" y="155" text-anchor="middle" class="title">listens :80 → ${NEOREEF_PORT}</text>
+  <text x="560" y="170" text-anchor="middle" class="sub">configured by /etc/nginx/conf.d/default.conf</text>
+
+  <rect x="420" y="190" width="280" height="60" rx="6" class="infra"/>
+  <text x="560" y="210" text-anchor="middle" class="title">root /srv/neoreef</text>
+  <text x="560" y="226" text-anchor="middle" class="sub">sendfile on · CORS · range requests</text>
+  <text x="560" y="240" text-anchor="middle" class="sub">tif / geojson / html cache rules</text>
+
+  <rect x="420" y="265" width="280" height="40" rx="6" class="data"/>
+  <text x="560" y="287" text-anchor="middle" class="title">/srv/neoreef (read-only mount)</text>
+  <text x="560" y="300" text-anchor="middle" class="sub">viewers + manifest + cogs + landuse</text>
+
+  <!-- ============== pipeline container ============== -->
+  <rect x="400" y="360" width="320" height="240" rx="12" class="container-bg"/>
+  <text x="560" y="382" text-anchor="middle" font-size="13" font-weight="700" fill="#3a3a3a">pipeline — service "pipeline"</text>
+  <text x="560" y="398" text-anchor="middle" class="sub">profile: pipeline · run on-demand</text>
+
+  <rect x="420" y="415" width="280" height="40" rx="6" class="infra"/>
+  <text x="560" y="435" text-anchor="middle" class="title">FROM continuumio/miniconda3</text>
+  <text x="560" y="450" text-anchor="middle" class="sub">conda-forge: rasterio, geopandas, fiona</text>
+
+  <rect x="420" y="470" width="280" height="40" rx="6" class="py"/>
+  <text x="560" y="490" text-anchor="middle" class="title">ENTRYPOINT: cesium_pipeline.py</text>
+  <text x="560" y="505" text-anchor="middle" class="sub">--config /app/config/cesium_config.json</text>
+
+  <rect x="420" y="525" width="280" height="40" rx="6" class="data"/>
+  <text x="560" y="547" text-anchor="middle" class="title">/app/output</text>
+  <text x="560" y="560" text-anchor="middle" class="sub">writes manifest + COGs + GeoJSON</text>
+
+  <rect x="420" y="572" width="280" height="20" rx="6" class="data"/>
+  <text x="560" y="588" text-anchor="middle" class="sub">/app/input (ro) · /app/config (ro)</text>
+
+  <!-- ============== Shared volume ============== -->
+  <rect x="320" y="320" width="200" height="60" rx="10" class="vol"/>
+  <text x="420" y="340" text-anchor="middle" class="title">volume: pipeline-output</text>
+  <text x="420" y="358" text-anchor="middle" class="sub">writer: pipeline (rw)</text>
+  <text x="420" y="372" text-anchor="middle" class="sub">reader: nginx (ro)</text>
+
+  <!-- ============== External world ============== -->
+  <rect x="780" y="80" width="280" height="600" rx="10" class="host-bg"/>
+  <text x="920" y="102" text-anchor="middle" font-size="12" font-weight="700" fill="#444">External / network</text>
+
+  <rect x="800" y="120" width="240" height="60" rx="8" class="infra"/>
+  <text x="920" y="142" text-anchor="middle" class="title">Browser</text>
+  <text x="920" y="160" text-anchor="middle" class="sub">http://&lt;host&gt;:${NEOREEF_PORT}/</text>
+  <text x="920" y="173" text-anchor="middle" class="sub">cesium_viewer.html</text>
+
+  <rect x="800" y="200" width="240" height="60" rx="8" class="ext"/>
+  <text x="920" y="222" text-anchor="middle" class="title">Cesium ion</text>
+  <text x="920" y="240" text-anchor="middle" class="sub">api.cesium.com (HTTPS)</text>
+  <text x="920" y="253" text-anchor="middle" class="sub">+ S3 upload bucket</text>
+
+  <rect x="800" y="280" width="240" height="60" rx="8" class="ext"/>
+  <text x="920" y="302" text-anchor="middle" class="title">CesiumJS CDN + OSM</text>
+  <text x="920" y="320" text-anchor="middle" class="sub">browser-side fetch (not container)</text>
+
+  <rect x="800" y="360" width="240" height="60" rx="8" class="ext"/>
+  <text x="920" y="382" text-anchor="middle" class="title">proxy.noc.titech.ac.jp:3128</text>
+  <text x="920" y="400" text-anchor="middle" class="sub">campus HTTPS proxy</text>
+  <text x="920" y="413" text-anchor="middle" class="sub">passed via build-args + env</text>
+
+  <rect x="800" y="440" width="240" height="180" rx="10" fill="#fafaff" stroke="#444" stroke-dasharray="3 3"/>
+  <text x="920" y="462" text-anchor="middle" class="title">Run commands</text>
+  <text x="810" y="486" font-size="11" font-family="ui-monospace, monospace">docker compose up -d nginx</text>
+  <text x="810" y="506" font-size="11" font-family="ui-monospace, monospace">docker compose run --rm \</text>
+  <text x="826" y="522" font-size="11" font-family="ui-monospace, monospace">  pipeline --stage all</text>
+  <text x="810" y="546" font-size="11" font-family="ui-monospace, monospace">NEOREEF_PORT=8080 \</text>
+  <text x="810" y="562" font-size="11" font-family="ui-monospace, monospace">  docker compose up -d nginx</text>
+  <text x="810" y="586" font-size="11" font-family="ui-monospace, monospace">docker compose logs -f nginx</text>
+  <text x="810" y="608" font-size="10" font-style="italic" fill="#777">profile: pipeline → on-demand only</text>
+
+  <!-- ============== Mount arrows ============== -->
+  <!-- viewer HTML → nginx -->
+  <path d="M320,145 L420,145" class="mount"/>
+  <text x="370" y="138" font-size="9" fill="#7d6a1e" text-anchor="middle">bind:ro</text>
+
+  <!-- nginx config → nginx -->
+  <path d="M320,200 L420,200" class="mount"/>
+  <text x="370" y="193" font-size="9" fill="#7d6a1e" text-anchor="middle">bind:ro</text>
+
+  <!-- cesium_config.json → pipeline -->
+  <path d="M320,250 L320,580 L420,580" class="mount"/>
+  <text x="380" y="573" font-size="9" fill="#7d6a1e" text-anchor="middle">bind:ro /app/config</text>
+
+  <!-- DATA_SOURCE_DIR → pipeline /app/input -->
+  <path d="M320,305 L420,580" class="mount"/>
+  <text x="380" y="445" font-size="9" fill="#7d6a1e" text-anchor="middle">bind:ro /app/input</text>
+
+  <!-- pipeline → shared volume -->
+  <path d="M420,540 L420,380" class="mount"/>
+  <text x="438" y="460" font-size="9" fill="#7d6a1e">writes</text>
+
+  <!-- shared volume → nginx -->
+  <path d="M460,320 L460,265" class="mount"/>
+  <text x="478" y="295" font-size="9" fill="#7d6a1e">mounts ro</text>
+
+  <!-- ============== Network arrows ============== -->
+  <path d="M720,155 L800,150" class="flow"/>
+  <text x="760" y="143" font-size="10" fill="#444">:80</text>
+
+  <path d="M800,150 L720,155" class="flow"/>
+  <path d="M920,180 C 920,160 720,160 720,155" class="flow"/>
+
+  <path d="M720,490 L800,230" class="flow-dash"/>
+  <text x="760" y="370" font-size="10" fill="#666">ion REST + S3</text>
+
+  <path d="M920,300 C 920,330 720,330 720,490" class="flow-dash"/>
+  <text x="800" y="338" font-size="10" fill="#666">CDN/OSM (browser)</text>
+
+  <path d="M800,390 C 750,390 720,420 720,490" class="flow-dash"/>
+  <text x="730" y="425" font-size="10" fill="#666">via proxy</text>
+
+  <!-- ============== legend ============== -->
+  <g transform="translate(40, 700)">
+    <rect x="0"   y="0" width="14" height="14" class="container-bg"/>
+    <text x="20"  y="12">Container</text>
+    <rect x="100" y="0" width="14" height="14" class="vol"/>
+    <text x="120" y="12">Docker volume</text>
+    <rect x="220" y="0" width="14" height="14" class="data"/>
+    <text x="240" y="12">Data path</text>
+    <rect x="320" y="0" width="14" height="14" class="ext"/>
+    <text x="340" y="12">Config / external</text>
+    <line x1="450" y1="7" x2="490" y2="7" class="mount"/>
+    <text x="500" y="12">Bind mount</text>
+    <line x1="580" y1="7" x2="620" y2="7" class="flow-dash"/>
+    <text x="630" y="12">Network</text>
+  </g>
+</svg>

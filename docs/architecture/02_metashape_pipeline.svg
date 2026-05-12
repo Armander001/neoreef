@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NeoReef — Metashape Photogrammetry Pipeline
+  ===========================================
+  Internal flow of Batch_metashape.py.
+  Edit this file directly; it is not generated.
+
+  LAYOUT GUIDE
+  ------------
+  Canvas: 1000 x 880
+  Vertical spine of pipeline stages, x = 400 .. 600 (centred at 500).
+  Side branches (helpers, exports) flare left and right.
+  Stage rows are spaced 90 px apart starting at y = 110.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 880"
+     font-family="'Segoe UI', system-ui, sans-serif" font-size="13">
+
+  <defs>
+    <marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+    <style>
+      .py    { fill:#cfe1f2; stroke:#1e3a5f; stroke-width:1.5; }
+      .data  { fill:#cff2e1; stroke:#1e5f3a; stroke-width:1.5; }
+      .ext   { fill:#f2e1cf; stroke:#5f3a1e; stroke-width:1.5; }
+      .helper{ fill:#eef4fb; stroke:#1e3a5f; stroke-width:1.2;
+               stroke-dasharray:3 2; }
+      .title { font-size:13px; font-weight:600; fill:#222; }
+      .sub   { font-size:10.5px; font-style:italic; fill:#555; }
+      .stage-tag { font-size:10px; font-weight:700; fill:#1e3a5f;
+                   text-transform:uppercase; letter-spacing:1px; }
+      .flow      { fill:none; stroke:#444; stroke-width:1.5;
+                   marker-end:url(#arrow-end); }
+      .flow-dash { fill:none; stroke:#666; stroke-width:1.3;
+                   stroke-dasharray:4 4; marker-end:url(#arrow-end); }
+      .group-bg { fill:#f8f9fb; stroke:#1e3a5f; stroke-width:1; stroke-dasharray:6 4; opacity:0.6; }
+    </style>
+  </defs>
+
+  <text x="500" y="32" text-anchor="middle" font-size="18" font-weight="700"
+        fill="#1e3a5f">Metashape Pipeline — Batch_metashape.py</text>
+  <text x="500" y="52" text-anchor="middle" font-size="11" fill="#666">
+    Single survey or full-year batch · runs inside Metashape Pro 2.x via metashape.exe -r
+  </text>
+
+  <!-- ============== Config + entry ============== -->
+  <rect x="60" y="80" width="200" height="80" rx="8" class="ext"/>
+  <text x="160" y="102" text-anchor="middle" class="title">USER CONFIG block</text>
+  <text x="160" y="120" text-anchor="middle" class="sub">TARGET_FOLDER (None = batch)</text>
+  <text x="160" y="134" text-anchor="middle" class="sub">PHOTO_LIBRARY, OUTPUT_BASE</text>
+  <text x="160" y="148" text-anchor="middle" class="sub">EXPORT_3D_MODEL, JPEG_QUALITY</text>
+
+  <rect x="400" y="80" width="200" height="60" rx="8" class="py"/>
+  <text x="500" y="103" text-anchor="middle" class="title">main()</text>
+  <text x="500" y="120" text-anchor="middle" class="sub">opens log file</text>
+  <text x="500" y="133" text-anchor="middle" class="sub">creates Complete Images dir</text>
+  <path d="M260,120 L400,110" class="flow-dash"/>
+
+  <!-- ============== Folder collection ============== -->
+  <rect x="400" y="180" width="200" height="60" rx="8" class="py"/>
+  <text x="500" y="200" text-anchor="middle" class="title">collect_survey_folders()</text>
+  <text x="500" y="217" text-anchor="middle" class="sub">FOLDER_PATTERN regex</text>
+  <text x="500" y="230" text-anchor="middle" class="sub">Ishi24|25_S###_MMDD_A#</text>
+  <path d="M500,140 L500,180" class="flow"/>
+
+  <rect x="730" y="180" width="200" height="60" rx="8" class="data"/>
+  <text x="830" y="202" text-anchor="middle" class="title">survey_folders[]</text>
+  <text x="830" y="220" text-anchor="middle" class="sub">sorted Path list</text>
+  <path d="M600,210 L730,210" class="flow"/>
+
+  <!-- ============== Per-survey loop wrapper ============== -->
+  <rect x="60" y="280" width="880" height="500" rx="10" class="group-bg"/>
+  <text x="500" y="302" text-anchor="middle" class="stage-tag">For each survey_folder:</text>
+
+  <!-- Image discovery -->
+  <rect x="400" y="320" width="200" height="60" rx="8" class="py"/>
+  <text x="500" y="340" text-anchor="middle" class="title">get_images_from_folder()</text>
+  <text x="500" y="357" text-anchor="middle" class="sub">scans single-letter A..Z subdirs</text>
+  <text x="500" y="370" text-anchor="middle" class="sub">collects .jpg/.png/.orf/.tif</text>
+  <path d="M500,240 L500,320" class="flow"/>
+
+  <rect x="100" y="320" width="180" height="60" rx="8" class="data"/>
+  <text x="190" y="342" text-anchor="middle" class="title">image_list</text>
+  <text x="190" y="360" text-anchor="middle" class="sub">[str path] sorted A→Z</text>
+  <path d="M400,350 L280,350" class="flow"/>
+
+  <!-- Project / chunk -->
+  <rect x="400" y="395" width="200" height="60" rx="8" class="py"/>
+  <text x="500" y="415" text-anchor="middle" class="title">Metashape.Document</text>
+  <text x="500" y="432" text-anchor="middle" class="sub">open existing OR create new</text>
+  <text x="500" y="445" text-anchor="middle" class="sub">chunk = doc.chunk or addChunk()</text>
+  <path d="M500,380 L500,395" class="flow"/>
+
+  <rect x="700" y="395" width="220" height="60" rx="8" class="data"/>
+  <text x="810" y="417" text-anchor="middle" class="title">{survey_name}.psx</text>
+  <text x="810" y="435" text-anchor="middle" class="sub">in OUTPUT_BASE/</text>
+  <path d="M600,425 L700,425" class="flow"/>
+
+  <!-- Alignment -->
+  <rect x="400" y="470" width="200" height="60" rx="8" class="py"/>
+  <text x="500" y="490" text-anchor="middle" class="title">ALIGNMENT</text>
+  <text x="500" y="507" text-anchor="middle" class="sub">matchPhotos → alignCameras</text>
+  <text x="500" y="520" text-anchor="middle" class="sub">→ optimizeCameras</text>
+  <path d="M500,455 L500,470" class="flow"/>
+
+  <rect x="80" y="470" width="220" height="60" rx="8" class="ext"/>
+  <text x="190" y="490" text-anchor="middle" class="title">ALIGNMENT_* config</text>
+  <text x="190" y="507" text-anchor="middle" class="sub">downscale=1, kp=60000, tp=8000</text>
+  <text x="190" y="520" text-anchor="middle" class="sub">generic_preselection=True</text>
+  <path d="M300,500 L400,500" class="flow-dash"/>
+
+  <!-- Depth + mesh -->
+  <rect x="400" y="545" width="200" height="60" rx="8" class="py"/>
+  <text x="500" y="565" text-anchor="middle" class="title">DEPTH MAPS + MESH</text>
+  <text x="500" y="582" text-anchor="middle" class="sub">buildDepthMaps (downscale=2)</text>
+  <text x="500" y="595" text-anchor="middle" class="sub">buildModel (Arbitrary surface)</text>
+  <path d="M500,530 L500,545" class="flow"/>
+
+  <!-- Orthomosaic -->
+  <rect x="400" y="620" width="200" height="60" rx="8" class="py"/>
+  <text x="500" y="640" text-anchor="middle" class="title">ORTHOMOSAIC</text>
+  <text x="500" y="657" text-anchor="middle" class="sub">buildOrthomosaic (Mosaic blend)</text>
+  <text x="500" y="670" text-anchor="middle" class="sub">surface=ModelData</text>
+  <path d="M500,605 L500,620" class="flow"/>
+
+  <!-- Exports row -->
+  <rect x="80" y="710" width="220" height="60" rx="8" class="data"/>
+  <text x="190" y="732" text-anchor="middle" class="title">{name}_ortho.tif</text>
+  <text x="190" y="750" text-anchor="middle" class="sub">BigTIFF, no world file</text>
+
+  <rect x="320" y="710" width="220" height="60" rx="8" class="data"/>
+  <text x="430" y="732" text-anchor="middle" class="title">Complete Images/{ts}/{n}.jpg</text>
+  <text x="430" y="750" text-anchor="middle" class="sub">via export_jpeg_preview()</text>
+
+  <rect x="560" y="710" width="180" height="60" rx="8" class="data"/>
+  <text x="650" y="732" text-anchor="middle" class="title">{name}.glb</text>
+  <text x="650" y="750" text-anchor="middle" class="sub">if EXPORT_3D_MODEL</text>
+
+  <rect x="760" y="710" width="160" height="60" rx="8" class="data"/>
+  <text x="840" y="732" text-anchor="middle" class="title">tileset.json</text>
+  <text x="840" y="750" text-anchor="middle" class="sub">3D Tiles 1.1</text>
+
+  <path d="M460,680 L190,710" class="flow"/>
+  <path d="M480,680 L430,710" class="flow"/>
+  <path d="M520,680 L650,710" class="flow"/>
+  <path d="M540,680 L840,710" class="flow"/>
+
+  <!-- ============== Helper sidebar ============== -->
+  <g transform="translate(0, 0)">
+    <rect x="60" y="180" width="270" height="120" rx="6" class="helper"/>
+    <text x="195" y="198" text-anchor="middle" class="title">Helpers (module-level)</text>
+    <text x="80"  y="218" font-size="11">make_logger(handle)</text>
+    <text x="80"  y="234" class="sub">Metashape console + stdout + file</text>
+    <text x="80"  y="252" font-size="11">_run_tool(args, log, label)</text>
+    <text x="80"  y="268" class="sub">subprocess wrapper, 600s timeout</text>
+    <text x="80"  y="286" font-size="11">_compute_model_bbox / _make_tileset</text>
+  </g>
+
+  <g transform="translate(0, 0)">
+    <rect x="730" y="600" width="240" height="100" rx="6" class="helper"/>
+    <text x="850" y="618" text-anchor="middle" class="title">export_3d_model() pipeline</text>
+    <text x="745" y="638" font-size="11">[1/4] chunk.exportModel → .obj</text>
+    <text x="745" y="654" font-size="11">[2/4] obj2gltf → .glb</text>
+    <text x="745" y="670" font-size="11">[3/4] gltfpack -cc -tc → compressed</text>
+    <text x="745" y="686" font-size="11">[4/4] write tileset.json (bbox)</text>
+  </g>
+
+  <!-- ============== Outcome / summary ============== -->
+  <rect x="320" y="810" width="360" height="50" rx="8" class="data"/>
+  <text x="500" y="832" text-anchor="middle" class="title">batch_processing.log + results dict</text>
+  <text x="500" y="848" text-anchor="middle" class="sub">{successful, failed, skipped}</text>
+  <path d="M500,780 L500,810" class="flow"/>
+
+  <!-- ============== legend ============== -->
+  <g transform="translate(40, 845)">
+    <rect x="0"   y="0" width="14" height="14" class="py"/>
+    <text x="20"  y="12">Python function/stage</text>
+    <rect x="170" y="0" width="14" height="14" class="data"/>
+    <text x="190" y="12">Output artefact</text>
+    <rect x="290" y="0" width="14" height="14" class="ext"/>
+    <text x="310" y="12">Config / external tool</text>
+  </g>
+</svg>

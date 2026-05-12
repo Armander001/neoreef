@@ -55,7 +55,7 @@ metashape.exe -r Batch_metashape.py        # batch — edit TARGET_FOLDER first
 metashape.exe -r NeoReef.py                # single survey — edit USER CONFIG first
 ```
 
-Set `EXPORT_GLTF = True` in `Batch_metashape.py` to also export textured meshes as `.glb` for 3D viewing.
+Set `EXPORT_3D_MODEL = True` in `Batch_metashape.py` to run the full 3D model pipeline: Metashape OBJ export → `obj2gltf` (glb) → `gltfpack` (compressed glb with meshopt + KTX2) → `tileset.json`. Requires `obj2gltf` (`npm install -g obj2gltf`) and `gltfpack` on PATH.
 
 ### 2. Cesium pipeline (standalone Python)
 

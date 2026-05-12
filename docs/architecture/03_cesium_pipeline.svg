@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NeoReef — Cesium Post-Processing Pipeline
+  =========================================
+  Internal flow of cesium_pipeline.py.
+  Edit this file directly; it is not generated.
+
+  LAYOUT GUIDE
+  ------------
+  Canvas: 1200 x 880
+  Six stage columns at x = 80, 250, 420, 590, 760, 930 (width 150 each).
+  Inputs row:    y =  90
+  Stage row:     y = 200 (pipeline boxes)
+  Records row:   y = 320 (dataclasses produced)
+  Output row:    y = 440 (files written)
+  External row:  y = 580 (Cesium ion 4-step flow)
+  Manifest row:  y = 720 (manifest.json + viewer copy + serve)
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 880"
+     font-family="'Segoe UI', system-ui, sans-serif" font-size="13">
+
+  <defs>
+    <marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+    <style>
+      .py    { fill:#cfe1f2; stroke:#1e3a5f; stroke-width:1.5; }
+      .data  { fill:#cff2e1; stroke:#1e5f3a; stroke-width:1.5; }
+      .ext   { fill:#f2e1cf; stroke:#5f3a1e; stroke-width:1.5; }
+      .infra { fill:#e0e0e0; stroke:#3a3a3a; stroke-width:1.5; }
+      .stage { fill:#1e3a5f; stroke:none; }
+      .stage-text { fill:#fff; font-size:11px; font-weight:700;
+                    text-transform:uppercase; letter-spacing:1px; }
+      .title { font-size:13px; font-weight:600; fill:#222; }
+      .sub   { font-size:10.5px; font-style:italic; fill:#555; }
+      .flow      { fill:none; stroke:#444; stroke-width:1.5;
+                   marker-end:url(#arrow-end); }
+      .flow-dash { fill:none; stroke:#666; stroke-width:1.3;
+                   stroke-dasharray:4 4; marker-end:url(#arrow-end); }
+    </style>
+  </defs>
+
+  <text x="600" y="32" text-anchor="middle" font-size="18" font-weight="700"
+        fill="#1e3a5f">Cesium Pipeline — cesium_pipeline.py</text>
+  <text x="600" y="52" text-anchor="middle" font-size="11" fill="#666">
+    CLI: python cesium_pipeline.py --config cesium_config.json --stage [all|cog|landuse|model3d|upload|manifest|serve]
+  </text>
+
+  <!-- ============== Inputs row ============== -->
+  <g>
+    <rect x="80" y="78" width="190" height="60" rx="8" class="data"/>
+    <text x="175" y="100" text-anchor="middle" class="title">OUTPUT_BASE/*.tif</text>
+    <text x="175" y="118" text-anchor="middle" class="sub">Metashape orthos</text>
+    <text x="175" y="131" text-anchor="middle" class="sub">_coral_ortho.tif first</text>
+
+    <rect x="320" y="78" width="190" height="60" rx="8" class="data"/>
+    <text x="415" y="100" text-anchor="middle" class="title">LANDUSE_DIR/Land-useMap_*</text>
+    <text x="415" y="118" text-anchor="middle" class="sub">.shp + .prj or fallback CRS</text>
+
+    <rect x="560" y="78" width="190" height="60" rx="8" class="data"/>
+    <text x="655" y="100" text-anchor="middle" class="title">MODELS_3D_DIR/*.glb</text>
+    <text x="655" y="118" text-anchor="middle" class="sub">tileset.json (3D Tiles)</text>
+
+    <rect x="800" y="78" width="190" height="60" rx="8" class="ext"/>
+    <text x="895" y="100" text-anchor="middle" class="title">cesium_config.json</text>
+    <text x="895" y="118" text-anchor="middle" class="sub">CESIUM_ION_TOKEN</text>
+    <text x="895" y="131" text-anchor="middle" class="sub">USE_ION, EXTRA_*</text>
+
+    <rect x="1010" y="78" width="170" height="60" rx="8" class="ext"/>
+    <text x="1095" y="100" text-anchor="middle" class="title">known_ion_assets</text>
+    <text x="1095" y="118" text-anchor="middle" class="sub">name → asset_id map</text>
+  </g>
+
+  <!-- ============== Stage row ============== -->
+  <g>
+    <rect x="80" y="180" width="170" height="22" class="stage"/>
+    <text x="165" y="196" text-anchor="middle" class="stage-text">stage: cog</text>
+    <rect x="80" y="202" width="170" height="80" rx="8" class="py"/>
+    <text x="165" y="222" text-anchor="middle" class="title">scan_orthomosaics</text>
+    <text x="165" y="238" text-anchor="middle" class="sub">SURVEY_PATTERN regex</text>
+    <text x="165" y="252" text-anchor="middle" class="title">batch_convert_orthos</text>
+    <text x="165" y="268" text-anchor="middle" class="sub">via convert_to_cog()</text>
+    <text x="165" y="280" text-anchor="middle" class="sub">windowed read + overviews</text>
+    <path d="M175,138 L165,180" class="flow"/>
+
+    <rect x="270" y="180" width="170" height="22" class="stage"/>
+    <text x="355" y="196" text-anchor="middle" class="stage-text">stage: landuse</text>
+    <rect x="270" y="202" width="170" height="80" rx="8" class="py"/>
+    <text x="355" y="222" text-anchor="middle" class="title">batch_process_landuse</text>
+    <text x="355" y="238" text-anchor="middle" class="sub">_era_to_calendar(label)</text>
+    <text x="355" y="252" text-anchor="middle" class="title">shp_to_geojson</text>
+    <text x="355" y="268" text-anchor="middle" class="sub">geopandas → WGS84</text>
+    <text x="355" y="280" text-anchor="middle" class="sub">+ TOCHICD fill_color</text>
+    <path d="M415,138 L355,180" class="flow"/>
+
+    <rect x="460" y="180" width="170" height="22" class="stage"/>
+    <text x="545" y="196" text-anchor="middle" class="stage-text">stage: model3d</text>
+    <rect x="460" y="202" width="170" height="80" rx="8" class="py"/>
+    <text x="545" y="222" text-anchor="middle" class="title">scan_3d_models</text>
+    <text x="545" y="238" text-anchor="middle" class="sub">.glb / .gltf rglob</text>
+    <text x="545" y="254" text-anchor="middle" class="sub">tileset.json + textures</text>
+    <text x="545" y="268" text-anchor="middle" class="sub">copy to out_dir/models/</text>
+    <path d="M655,138 L545,180" class="flow"/>
+
+    <rect x="650" y="180" width="170" height="22" class="stage"/>
+    <text x="735" y="196" text-anchor="middle" class="stage-text">stage: upload</text>
+    <rect x="650" y="202" width="170" height="80" rx="8" class="py"/>
+    <text x="735" y="222" text-anchor="middle" class="title">batch_ion_upload</text>
+    <text x="735" y="238" text-anchor="middle" class="sub">ion_upload_ortho()</text>
+    <text x="735" y="252" text-anchor="middle" class="sub">ion_upload_landuse()</text>
+    <text x="735" y="268" text-anchor="middle" class="sub">skip if id pre-known</text>
+
+    <rect x="840" y="180" width="170" height="22" class="stage"/>
+    <text x="925" y="196" text-anchor="middle" class="stage-text">stage: manifest</text>
+    <rect x="840" y="202" width="170" height="80" rx="8" class="py"/>
+    <text x="925" y="222" text-anchor="middle" class="title">write_manifest</text>
+    <text x="925" y="238" text-anchor="middle" class="sub">+ inject base_ion_*</text>
+    <text x="925" y="254" text-anchor="middle" class="sub">+ copy *_viewer.html</text>
+    <text x="925" y="268" text-anchor="middle" class="sub">into CESIUM_OUTPUT_DIR</text>
+
+    <rect x="1030" y="180" width="150" height="22" class="stage"/>
+    <text x="1105" y="196" text-anchor="middle" class="stage-text">stage: serve</text>
+    <rect x="1030" y="202" width="150" height="80" rx="8" class="py"/>
+    <text x="1105" y="222" text-anchor="middle" class="title">start_local_server</text>
+    <text x="1105" y="238" text-anchor="middle" class="sub">_CORSHandler</text>
+    <text x="1105" y="254" text-anchor="middle" class="sub">SimpleHTTPServer 0.0.0.0</text>
+    <text x="1105" y="268" text-anchor="middle" class="sub">LOCAL_SERVER_PORT</text>
+  </g>
+
+  <!-- config dashed connection to all stages -->
+  <path d="M895,138 C 895,160 165,160 165,180" class="flow-dash"/>
+  <path d="M895,138 C 895,160 355,160 355,180" class="flow-dash"/>
+  <path d="M895,138 C 895,160 545,160 545,180" class="flow-dash"/>
+  <path d="M895,138 L735,180" class="flow-dash"/>
+  <path d="M895,138 L925,180" class="flow-dash"/>
+
+  <!-- ============== Records row ============== -->
+  <g>
+    <rect x="80" y="320" width="170" height="56" rx="8" class="data"/>
+    <text x="165" y="340" text-anchor="middle" class="title">List[OrthoRecord]</text>
+    <text x="165" y="357" text-anchor="middle" class="sub">survey_name, ortho_type</text>
+    <text x="165" y="370" text-anchor="middle" class="sub">cog_path, bbox_wgs84, ion_id</text>
+    <path d="M165,282 L165,320" class="flow"/>
+
+    <rect x="270" y="320" width="170" height="56" rx="8" class="data"/>
+    <text x="355" y="340" text-anchor="middle" class="title">List[LanduseRecord]</text>
+    <text x="355" y="357" text-anchor="middle" class="sub">year_label, calendar_year</text>
+    <text x="355" y="370" text-anchor="middle" class="sub">geojson_path, feature_count</text>
+    <path d="M355,282 L355,320" class="flow"/>
+
+    <rect x="460" y="320" width="170" height="56" rx="8" class="data"/>
+    <text x="545" y="340" text-anchor="middle" class="title">List[Model3DRecord]</text>
+    <text x="545" y="357" text-anchor="middle" class="sub">format (3dtiles|glb|gltf)</text>
+    <text x="545" y="370" text-anchor="middle" class="sub">output_path, position</text>
+    <path d="M545,282 L545,320" class="flow"/>
+  </g>
+
+  <!-- ============== Output row ============== -->
+  <g>
+    <rect x="80" y="430" width="170" height="56" rx="8" class="data"/>
+    <text x="165" y="450" text-anchor="middle" class="title">cogs/{name}_cog.tif</text>
+    <text x="165" y="467" text-anchor="middle" class="sub">tiled, DEFLATE+predictor=2</text>
+    <text x="165" y="480" text-anchor="middle" class="sub">overviews 2/4/8/16/32/64</text>
+    <path d="M165,376 L165,430" class="flow"/>
+
+    <rect x="270" y="430" width="170" height="56" rx="8" class="data"/>
+    <text x="355" y="450" text-anchor="middle" class="title">landuse/landuse_{Y}.geojson</text>
+    <text x="355" y="467" text-anchor="middle" class="sub">EPSG:4326</text>
+    <text x="355" y="480" text-anchor="middle" class="sub">+ fill_color, land_use_*</text>
+    <path d="M355,376 L355,430" class="flow"/>
+
+    <rect x="460" y="430" width="170" height="56" rx="8" class="data"/>
+    <text x="545" y="450" text-anchor="middle" class="title">models/{name}/tileset.json</text>
+    <text x="545" y="467" text-anchor="middle" class="sub">or models/*.glb</text>
+    <path d="M545,376 L545,430" class="flow"/>
+  </g>
+
+  <!-- ============== Cesium ion external (4 steps) ============== -->
+  <rect x="650" y="430" width="380" height="120" rx="10" fill="#fff7ed" stroke="#5f3a1e" stroke-dasharray="6 4"/>
+  <text x="840" y="450" text-anchor="middle" class="title">_ion_upload_asset() — 4-step flow</text>
+  <text x="660" y="472" font-size="11">1. POST /v1/assets → {assetMetadata, uploadLocation, onComplete}</text>
+  <text x="660" y="492" font-size="11">2. PUT to S3 via boto3 (multipart > 100 MB)</text>
+  <text x="660" y="512" font-size="11">3. POST onComplete.url with onComplete.fields</text>
+  <text x="660" y="532" font-size="11">4. Poll GET /v1/assets/{id} until status == COMPLETE</text>
+  <path d="M735,282 L735,430" class="flow"/>
+
+  <rect x="1050" y="450" width="130" height="80" rx="8" class="ext"/>
+  <text x="1115" y="475" text-anchor="middle" class="title">api.cesium.com</text>
+  <text x="1115" y="495" text-anchor="middle" class="sub">/v1/assets</text>
+  <text x="1115" y="513" text-anchor="middle" class="sub">requests + boto3</text>
+  <path d="M1030,490 L1050,490" class="flow"/>
+
+  <!-- ============== Manifest row ============== -->
+  <g>
+    <rect x="650" y="600" width="240" height="80" rx="8" class="data"/>
+    <text x="770" y="622" text-anchor="middle" class="title">manifest.json</text>
+    <text x="770" y="640" text-anchor="middle" class="sub">orthomosaics[], landuse_layers[]</text>
+    <text x="770" y="654" text-anchor="middle" class="sub">models_3d[], survey_area</text>
+    <text x="770" y="668" text-anchor="middle" class="sub">cesium_ion_token (if USE_ION)</text>
+    <path d="M925,282 L770,600" class="flow"/>
+
+    <rect x="920" y="600" width="240" height="80" rx="8" class="data"/>
+    <text x="1040" y="622" text-anchor="middle" class="title">cesium_viewer.html</text>
+    <text x="1040" y="640" text-anchor="middle" class="title">ortho_viewer.html</text>
+    <text x="1040" y="657" text-anchor="middle" class="title">landuse_viewer.html</text>
+    <text x="1040" y="672" text-anchor="middle" class="sub">copied next to manifest</text>
+    <path d="M925,282 L1040,600" class="flow"/>
+  </g>
+
+  <!-- ============== Local server ============== -->
+  <rect x="430" y="720" width="320" height="60" rx="8" class="infra"/>
+  <text x="590" y="742" text-anchor="middle" class="title">HTTPServer + _CORSHandler</text>
+  <text x="590" y="760" text-anchor="middle" class="sub">http://0.0.0.0:{port}/cesium_viewer.html</text>
+  <text x="590" y="773" text-anchor="middle" class="sub">CORS + Range header support</text>
+  <path d="M1105,282 L590,720" class="flow"/>
+  <path d="M770,680 L590,720" class="flow"/>
+  <path d="M1040,680 L590,720" class="flow"/>
+
+  <!-- ============== Helpers / shared ============== -->
+  <rect x="40" y="600" width="380" height="180" rx="6" fill="#eef4fb" stroke="#1e3a5f" stroke-dasharray="3 2"/>
+  <text x="230" y="618" text-anchor="middle" class="title">Module-level helpers</text>
+  <text x="55"  y="640" font-size="11">make_logger(path) — file + stdout handlers</text>
+  <text x="55"  y="658" font-size="11">load_config(path) — strips _comment keys, defaults</text>
+  <text x="55"  y="676" font-size="11">_get_bbox_wgs84(ds) — rasterio.transform_bounds</text>
+  <text x="55"  y="694" font-size="11">_fill_bbox(rec, log) — populate OrthoRecord.bbox_wgs84</text>
+  <text x="55"  y="712" font-size="11">_detect_crs(shp) — parse .prj if non-empty</text>
+  <text x="55"  y="730" font-size="11">_era_to_calendar(label) — H23 → 2011, etc.</text>
+  <text x="55"  y="748" font-size="11">TOCHICD_MAP — 19-entry land-use legend (color, JP, EN)</text>
+  <text x="55"  y="766" font-size="11">ERA_OFFSETS — Meiji/Taisho/Showa/Heisei/Reiwa offsets</text>
+
+  <!-- ============== legend ============== -->
+  <g transform="translate(40, 815)">
+    <rect x="0"   y="0" width="14" height="14" class="py"/>
+    <text x="20"  y="12">Pipeline function</text>
+    <rect x="160" y="0" width="14" height="14" class="data"/>
+    <text x="180" y="12">Output / record</text>
+    <rect x="290" y="0" width="14" height="14" class="ext"/>
+    <text x="310" y="12">External / config</text>
+    <rect x="430" y="0" width="14" height="14" class="infra"/>
+    <text x="450" y="12">Runtime</text>
+    <rect x="520" y="0" width="14" height="14" fill="#1e3a5f"/>
+    <text x="540" y="12">CLI --stage tag</text>
+  </g>
+</svg>

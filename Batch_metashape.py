@@ -29,8 +29,11 @@ try:
 except Exception:
     pass
 
+import json
 import os
 import re
+import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -96,8 +99,17 @@ ORTHO_BIGTIFF          = True
 JPEG_QUALITY = 90
 
 # --- 3D model export ---------------------------------------------------------
-# Export textured mesh as glTF/glB for CesiumJS 3D viewing (set False to skip)
-EXPORT_GLTF = False
+# Export textured mesh for CesiumJS 3D viewing (set False to skip)
+EXPORT_3D_MODEL = False
+
+# Pipeline: Metashape OBJ -> obj2gltf (glb) -> gltfpack (compressed glb) -> tileset.json
+# Tool paths — set to full path if not on PATH in the Metashape environment
+OBJ2GLTF_CMD  = "obj2gltf"        # npm install -g obj2gltf
+GLTFPACK_CMD  = "gltfpack"        # https://github.com/zeux/meshoptimizer
+GLTFPACK_ARGS = ["-cc", "-tc"]    # meshopt compression + KTX2 texture compression
+
+# Subdirectory under OUTPUT_BASE for 3D model outputs (OBJ intermediates + final glb/tileset)
+MODELS_SUBDIR = "3d_models"
 
 # --- Coordinate system -------------------------------------------------------
 # Leave None for non-GPS / underwater surveys (uses Metashape local coords)
@@ -212,6 +224,180 @@ def export_jpeg_preview(chunk, jpeg_path: str, jpeg_quality: int, log):
         return False
 
 
+def _run_tool(cmd_args, log, label="tool"):
+    """Run an external command, log output, return True on success."""
+    try:
+        result = subprocess.run(
+            cmd_args,
+            capture_output=True, text=True, timeout=600,
+        )
+        if result.returncode == 0:
+            if result.stdout.strip():
+                log(f"      {label} stdout: {result.stdout.strip()}")
+            return True
+        else:
+            log(f"    WARNING: {label} failed (exit {result.returncode})")
+            if result.stderr.strip():
+                log(f"      stderr: {result.stderr.strip()}")
+            return False
+    except FileNotFoundError:
+        log(f"    WARNING: {label} not found on PATH — install it or set the full path in config")
+        return False
+    except subprocess.TimeoutExpired:
+        log(f"    WARNING: {label} timed out after 600s")
+        return False
+
+
+def export_3d_model(chunk, survey_name, model_dir, log):
+    """
+    Full 3D model export pipeline for CesiumJS:
+      1. Export OBJ + textures from Metashape
+      2. obj2gltf  → binary glb
+      3. gltfpack  → compressed glb (meshopt + KTX2)
+      4. Write tileset.json referencing the compressed glb
+
+    Returns the path to tileset.json on success, None on failure.
+    """
+    model_dir = Path(model_dir)
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    obj_path = model_dir / f"{survey_name}.obj"
+    raw_glb  = model_dir / f"{survey_name}.glb"
+    final_glb = model_dir / f"{survey_name}_compressed.glb"
+    tileset_path = model_dir / "tileset.json"
+
+    # ---- Step 1: Metashape OBJ export ----------------------------------------
+    log(f"    [1/4] Exporting OBJ from Metashape...")
+    try:
+        chunk.exportModel(
+            str(obj_path),
+            format=Metashape.ModelFormatOBJ,
+            save_texture=True,
+            save_normals=True,
+        )
+        log(f"    [OK] OBJ exported: {obj_path}")
+    except Exception as e:
+        log(f"    ERROR: OBJ export failed ({e})")
+        return None
+
+    # ---- Step 2: OBJ → glb via obj2gltf -------------------------------------
+    log(f"    [2/4] Converting OBJ → glb (obj2gltf)...")
+    ok = _run_tool(
+        [OBJ2GLTF_CMD, "-i", str(obj_path), "-o", str(raw_glb), "--binary"],
+        log, label="obj2gltf",
+    )
+    if not ok:
+        return None
+
+    # ---- Step 3: compress with gltfpack --------------------------------------
+    log(f"    [3/4] Compressing glb (gltfpack)...")
+    ok = _run_tool(
+        [GLTFPACK_CMD, "-i", str(raw_glb), "-o", str(final_glb)] + GLTFPACK_ARGS,
+        log, label="gltfpack",
+    )
+    if not ok:
+        # If compression fails, fall back to the raw glb
+        log(f"    WARNING: gltfpack failed — using uncompressed glb")
+        final_glb = raw_glb
+
+    # ---- Step 4: generate tileset.json ---------------------------------------
+    log(f"    [4/4] Generating tileset.json...")
+    try:
+        # Compute bounding box from the model's vertex bounds
+        bbox = _compute_model_bbox(chunk)
+        tileset = _make_tileset(final_glb.name, bbox)
+        with open(str(tileset_path), "w", encoding="utf-8") as f:
+            json.dump(tileset, f, indent=2)
+        log(f"    [OK] tileset.json written: {tileset_path}")
+    except Exception as e:
+        log(f"    WARNING: tileset.json generation failed ({e})")
+        return None
+
+    # ---- Cleanup OBJ intermediates (keep textures for debugging) -------------
+    for ext in (".obj", ".mtl"):
+        intermediate = model_dir / f"{survey_name}{ext}"
+        if intermediate.exists():
+            try:
+                intermediate.unlink()
+            except OSError:
+                pass
+
+    # Clean up raw glb if compression succeeded and produced a different file
+    if final_glb.name != raw_glb.name and raw_glb.exists():
+        try:
+            raw_glb.unlink()
+        except OSError:
+            pass
+
+    return tileset_path
+
+
+def _compute_model_bbox(chunk):
+    """
+    Extract the model's axis-aligned bounding box from the chunk.
+
+    Returns dict with keys: x_min, y_min, z_min, x_max, y_max, z_max
+    (in the chunk's local coordinate frame).
+    """
+    model = chunk.model
+    if not model or not model.vertices:
+        raise ValueError("Chunk has no model vertices")
+
+    vertices = model.vertices
+    xs = [v.coord.x for v in vertices]
+    ys = [v.coord.y for v in vertices]
+    zs = [v.coord.z for v in vertices]
+
+    return {
+        "x_min": min(xs), "x_max": max(xs),
+        "y_min": min(ys), "y_max": max(ys),
+        "z_min": min(zs), "z_max": max(zs),
+    }
+
+
+def _make_tileset(glb_filename, bbox):
+    """
+    Build a 3D Tiles 1.1 tileset.json for a single glb.
+
+    The bounding box uses a local-origin box volume. The cesium_pipeline
+    or CRS configuration will assign the real-world transform (position
+    on the globe) at serving time.
+    """
+    dx = (bbox["x_max"] - bbox["x_min"]) / 2.0
+    dy = (bbox["y_max"] - bbox["y_min"]) / 2.0
+    dz = (bbox["z_max"] - bbox["z_min"]) / 2.0
+
+    cx = (bbox["x_min"] + bbox["x_max"]) / 2.0
+    cy = (bbox["y_min"] + bbox["y_max"]) / 2.0
+    cz = (bbox["z_min"] + bbox["z_max"]) / 2.0
+
+    # Geometric error: use the model's bounding sphere radius as a heuristic
+    geometric_error = max(dx, dy, dz) * 2.0
+
+    return {
+        "asset": {
+            "version": "1.1",
+            "generator": "NeoReef Batch_metashape.py",
+        },
+        "geometricError": geometric_error,
+        "root": {
+            "boundingVolume": {
+                "box": [
+                    cx, cy, cz,        # center
+                    dx, 0,  0,          # x half-axis
+                    0,  dy, 0,          # y half-axis
+                    0,  0,  dz,         # z half-axis
+                ]
+            },
+            "geometricError": 0,
+            "content": {
+                "uri": glb_filename,
+            },
+            "refine": "REPLACE",
+        },
+    }
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -239,6 +425,7 @@ def main():
         log(f"Mode            : {mode_label}")
         log(f"Output directory: {OUTPUT_BASE}")
         log(f"JPEG preview dir: {complete_images_dir}")
+        log(f"3D model export : {'ON (OBJ -> glb -> compressed glb -> tileset.json)' if EXPORT_3D_MODEL else 'OFF'}")
         log(f"GPS / CRS       : {'None (local coords - underwater mode)' if not SET_CRS else SET_CRS}")
         log("=" * 80)
 
@@ -375,19 +562,15 @@ def main():
                 log(f"  [EXPORT] JPEG -> {JPEG_OUT}")
                 export_jpeg_preview(chunk, JPEG_OUT, JPEG_QUALITY, log)
 
-                # Export 3D model as glTF (optional — for CesiumJS 3D photomosaic viewing)
-                if EXPORT_GLTF and chunk.model:
-                    GLTF_OUT = os.path.join(OUTPUT_BASE, f"{survey_name}.glb")
-                    log(f"  [EXPORT] glTF -> {GLTF_OUT}")
-                    try:
-                        chunk.exportModel(
-                            GLTF_OUT,
-                            format=Metashape.ModelFormatGLTF,
-                            save_texture=True,
-                        )
-                        log("    [OK] glTF saved")
-                    except Exception as e:
-                        log(f"    WARNING: glTF export failed ({e})")
+                # Export 3D model pipeline (OBJ → glb → compressed glb → tileset.json)
+                if EXPORT_3D_MODEL and chunk.model:
+                    model_out_dir = os.path.join(OUTPUT_BASE, MODELS_SUBDIR, survey_name)
+                    log(f"  [3D MODEL] Pipeline -> {model_out_dir}")
+                    tileset = export_3d_model(chunk, survey_name, model_out_dir, log)
+                    if tileset:
+                        log(f"  [3D MODEL] Complete: {tileset}")
+                    else:
+                        log(f"  [3D MODEL] WARNING: pipeline did not produce a tileset")
 
                 doc.save()
 
@@ -419,6 +602,8 @@ def main():
                 log(f"  [FAIL] {name} - {reason}")
 
         log(f"\nJPEG previews : {complete_images_dir}")
+        if EXPORT_3D_MODEL:
+            log(f"3D models     : {os.path.join(OUTPUT_BASE, MODELS_SUBDIR)}")
         log(f"Log file      : {log_file}")
         log("=" * 80)
 
