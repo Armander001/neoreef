@@ -41,7 +41,14 @@ docker-compose.yml          # nginx + pipeline services
 nginx/default.conf          # Static file serving with CORS and range request support
 .devcontainer/              # VS Code devcontainer config (Python 3.11 + conda)
 .vscode/settings.json       # Claude Code terminal integration
-docs/                       # Diagrams (environment-setup.svg)
+docs/environment-setup.svg  # Dev environment diagram
+docs/architecture/          # Per-subsystem SVG diagrams + visual-vocabulary README
+docs/DEPLOY_MDX.md          # Deployment guide for the mdx research cloud
+docs/REMOTE_DEV_MDX.md      # Daily development on the mdx VM via VS Code Remote-SSH
+docs/REPORT_code_duplication.md  # Code-health report with ordered cleanup plan
+Project Updates/            # LaTeX lab progress reports (not code)
+short_scripts.txt           # Scratch notes (proxy snippets) — candidate for deletion
+error_file.txt              # Captured devcontainer log — candidate for deletion
 ```
 
 ## How to run
@@ -86,6 +93,8 @@ docker compose run --rm pipeline \          # run data pipeline on-demand
   --config /app/config/cesium_config.json --stage all
 NEOREEF_PORT=8080 docker compose up -d nginx  # custom port
 ```
+
+For deploying to the school's mdx cloud (VM provisioning, data transfer, firewall, config), see `docs/DEPLOY_MDX.md`.
 
 ### 4. Viewers
 

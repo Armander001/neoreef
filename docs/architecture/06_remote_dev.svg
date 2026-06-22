@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NeoReef — Remote Development on mdx (VS Code Remote-SSH)
+  ========================================================
+  What runs where when developing on the mdx VM through VS Code.
+  Companion to docs/REMOTE_DEV_MDX.md. Edit directly; not generated.
+
+  LAYOUT GUIDE
+  ------------
+  Canvas: 1200 x 760
+  Local Windows machine (left,  x = 20  .. 340)
+  Network / routes      (mid,   x = 360 .. 520)
+  mdx VM                (right, x = 540 .. 1180), two inner columns:
+     dev tooling  x = 560 .. 840
+     docker/data  x = 870 .. 1160
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760"
+     font-family="'Segoe UI', system-ui, sans-serif" font-size="13">
+
+  <defs>
+    <marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+    <style>
+      .py    { fill:#cfe1f2; stroke:#1e3a5f; stroke-width:1.5; }
+      .data  { fill:#cff2e1; stroke:#1e5f3a; stroke-width:1.5; }
+      .ext   { fill:#f2e1cf; stroke:#5f3a1e; stroke-width:1.5; }
+      .infra { fill:#e0e0e0; stroke:#3a3a3a; stroke-width:1.5; }
+      .title { font-size:13px; font-weight:600; fill:#222; }
+      .sub   { font-size:10.5px; font-style:italic; fill:#555; }
+      .container-bg { fill:#f4f4f4; stroke:#3a3a3a; stroke-width:2; }
+      .host-bg   { fill:#fafaff; stroke:#444; stroke-width:1; stroke-dasharray:5 4; opacity:0.7; }
+      .flow      { fill:none; stroke:#444; stroke-width:1.5;
+                   marker-end:url(#arrow-end); }
+      .flow-dash { fill:none; stroke:#666; stroke-width:1.3;
+                   stroke-dasharray:4 4; marker-end:url(#arrow-end); }
+      .mount     { fill:none; stroke:#7d6a1e; stroke-width:1.3;
+                   stroke-dasharray:2 3; }
+    </style>
+  </defs>
+
+  <text x="600" y="32" text-anchor="middle" font-size="18" font-weight="700"
+        fill="#3a3a3a">Remote Development on mdx (VS Code Remote-SSH)</text>
+  <text x="600" y="52" text-anchor="middle" font-size="11" fill="#666">
+    UI stays on Windows; terminal, extensions, Docker and files all live on the VM
+  </text>
+
+  <!-- ============== Local Windows machine ============== -->
+  <rect x="20" y="80" width="320" height="600" rx="10" class="host-bg"/>
+  <text x="180" y="102" text-anchor="middle" font-size="12" font-weight="700" fill="#444">Local Windows machine</text>
+
+  <rect x="40" y="120" width="280" height="60" rx="6" class="infra"/>
+  <text x="180" y="142" text-anchor="middle" class="title">VS Code (client UI)</text>
+  <text x="180" y="160" text-anchor="middle" class="sub">Remote-SSH extension · window only</text>
+
+  <rect x="40" y="200" width="280" height="60" rx="6" class="ext"/>
+  <text x="180" y="222" text-anchor="middle" class="title">~/.ssh/config</text>
+  <text x="180" y="240" text-anchor="middle" class="sub">mdx (home :22) · mdx-campus (proxy :443)</text>
+
+  <rect x="40" y="300" width="280" height="60" rx="6" class="py"/>
+  <text x="180" y="322" text-anchor="middle" class="title">Batch_metashape.py · cesium_pipeline.py</text>
+  <text x="180" y="340" text-anchor="middle" class="sub">photogrammetry stays local (license + GPU)</text>
+
+  <rect x="40" y="380" width="280" height="50" rx="6" class="data"/>
+  <text x="180" y="400" text-anchor="middle" class="title">CESIUM_OUTPUT_DIR</text>
+  <text x="180" y="417" text-anchor="middle" class="sub">COGs · GeoJSON · manifest · viewers</text>
+
+  <rect x="40" y="560" width="280" height="60" rx="6" class="infra"/>
+  <text x="180" y="582" text-anchor="middle" class="title">Browser</text>
+  <text x="180" y="600" text-anchor="middle" class="sub">http://&lt;global-ip&gt;/ or forwarded localhost</text>
+
+  <!-- ============== Network / routes ============== -->
+  <rect x="360" y="120" width="160" height="70" rx="8" class="ext"/>
+  <text x="440" y="142" text-anchor="middle" class="title">campus proxy</text>
+  <text x="440" y="158" text-anchor="middle" class="sub">proxy.noc.titech.ac.jp</text>
+  <text x="440" y="172" text-anchor="middle" class="sub">HTTP CONNECT → :443</text>
+
+  <!-- ssh config → proxy (campus route) -->
+  <path d="M320,220 C 345,220 345,160 360,158" class="flow"/>
+  <text x="338" y="200" font-size="10" fill="#444">on campus</text>
+
+  <!-- proxy → vscode-server -->
+  <path d="M520,155 C 580,155 630,170 660,198" class="flow"/>
+
+  <!-- ssh config → VM (direct route, from home) -->
+  <path d="M320,240 C 430,250 520,250 575,250 L575,200" class="flow-dash"/>
+  <text x="430" y="268" font-size="10" fill="#666">from home — direct :22</text>
+
+  <!-- ============== mdx VM ============== -->
+  <rect x="540" y="80" width="640" height="600" rx="10" class="host-bg"/>
+  <text x="860" y="102" text-anchor="middle" font-size="12" font-weight="700" fill="#444">mdx VM — Ubuntu (163.220.179.252) · direct internet, no proxy</text>
+
+  <!-- dev tooling column -->
+  <rect x="560" y="200" width="280" height="60" rx="6" class="infra"/>
+  <text x="700" y="222" text-anchor="middle" class="title">~/.vscode-server</text>
+  <text x="700" y="240" text-anchor="middle" class="sub">headless backend · auto-installed over SSH</text>
+
+  <rect x="560" y="280" width="280" height="70" rx="6" class="infra"/>
+  <text x="700" y="302" text-anchor="middle" class="title">Remote extensions ("SSH: mdx")</text>
+  <text x="700" y="318" text-anchor="middle" class="sub">Claude Code · Python · Container Tools</text>
+  <text x="700" y="332" text-anchor="middle" class="sub">claude CLI: curl install.sh | bash</text>
+
+  <rect x="560" y="370" width="280" height="50" rx="6" class="infra"/>
+  <text x="700" y="390" text-anchor="middle" class="title">Integrated terminal (bash)</text>
+  <text x="700" y="407" text-anchor="middle" class="sub">git · docker compose · claude</text>
+
+  <rect x="560" y="450" width="280" height="60" rx="6" class="data"/>
+  <text x="700" y="472" text-anchor="middle" class="title">~/neoreef (git clone)</text>
+  <text x="700" y="490" text-anchor="middle" class="sub">viewers · compose · cesium_config.json</text>
+
+  <rect x="560" y="530" width="280" height="60" rx="6" class="data"/>
+  <text x="700" y="552" text-anchor="middle" class="title">~/neoreef-data/output</text>
+  <text x="700" y="570" text-anchor="middle" class="sub">synced from Windows (rsync / scp)</text>
+
+  <!-- docker column -->
+  <rect x="870" y="200" width="290" height="220" rx="12" class="container-bg"/>
+  <text x="1015" y="222" text-anchor="middle" font-size="13" font-weight="700" fill="#3a3a3a">nginx:alpine — always on</text>
+  <text x="1015" y="238" text-anchor="middle" class="sub">restart: unless-stopped · :80</text>
+
+  <rect x="890" y="255" width="250" height="50" rx="6" class="data"/>
+  <text x="1015" y="275" text-anchor="middle" class="title">viewer HTMLs (bind:ro)</text>
+  <text x="1015" y="292" text-anchor="middle" class="sub">edit in repo → refresh browser</text>
+
+  <rect x="890" y="315" width="250" height="50" rx="6" class="data"/>
+  <text x="1015" y="335" text-anchor="middle" class="title">/srv/neoreef (ro)</text>
+  <text x="1015" y="352" text-anchor="middle" class="sub">COGs · GeoJSON · manifest</text>
+
+  <rect x="890" y="375" width="250" height="34" rx="6" class="infra"/>
+  <text x="1015" y="396" text-anchor="middle" class="sub">CORS · range requests · no-cache HTML</text>
+
+  <rect x="870" y="440" width="290" height="70" rx="12" class="container-bg" stroke-dasharray="6 4"/>
+  <text x="1015" y="462" text-anchor="middle" font-size="13" font-weight="700" fill="#3a3a3a">pipeline — on demand</text>
+  <text x="1015" y="480" text-anchor="middle" class="sub">docker compose run --rm pipeline</text>
+  <text x="1015" y="495" text-anchor="middle" class="sub">--stage cog | landuse | manifest | all</text>
+
+  <!-- run commands -->
+  <rect x="870" y="530" width="290" height="130" rx="10" fill="#fafaff" stroke="#444" stroke-dasharray="3 3"/>
+  <text x="1015" y="551" text-anchor="middle" class="title">Daily commands (VM terminal)</text>
+  <text x="882" y="574" font-size="11" font-family="ui-monospace, monospace">docker compose up -d nginx</text>
+  <text x="882" y="592" font-size="11" font-family="ui-monospace, monospace">docker compose logs -f nginx</text>
+  <text x="882" y="610" font-size="11" font-family="ui-monospace, monospace">docker compose ps</text>
+  <text x="882" y="628" font-size="11" font-family="ui-monospace, monospace">git pull &amp;&amp; docker compose up -d nginx</text>
+  <text x="882" y="648" font-size="10" font-style="italic" fill="#777">Ports panel: forward :80 → private testing</text>
+
+  <!-- ============== arrows: client → server ============== -->
+  <path d="M180,180 L180,200" class="flow"/>
+
+  <!-- vscode-server chain -->
+  <path d="M700,260 L700,280" class="flow"/>
+  <path d="M700,350 L700,370" class="flow"/>
+  <path d="M700,420 L700,450" class="flow"/>
+  <text x="712" y="440" font-size="10" fill="#444">edits files in place</text>
+
+  <!-- terminal → containers -->
+  <path d="M840,395 C 860,395 860,310 870,310" class="flow"/>
+  <text x="852" y="362" font-size="10" fill="#444" transform="rotate(-90 852 362)">compose</text>
+  <path d="M840,405 C 862,405 862,475 870,475" class="flow-dash"/>
+
+  <!-- repo viewers → nginx bind mount -->
+  <path d="M840,470 L890,280" class="mount"/>
+  <text x="862" y="448" font-size="9" fill="#7d6a1e">bind:ro</text>
+
+  <!-- output dir → nginx data mount -->
+  <path d="M840,555 C 870,555 880,420 890,365" class="mount"/>
+  <text x="868" y="540" font-size="9" fill="#7d6a1e">bind:ro</text>
+
+  <!-- rsync: local output → VM output -->
+  <path d="M320,405 C 480,405 480,555 560,555" class="flow"/>
+  <text x="440" y="398" font-size="10" fill="#444">rsync / scp (after each pipeline run)</text>
+
+  <!-- metashape → output dir -->
+  <path d="M180,360 L180,380" class="flow"/>
+
+  <!-- browser → nginx :80 -->
+  <path d="M320,600 C 700,650 980,570 1013,520" class="flow-dash"/>
+  <text x="640" y="648" font-size="10" fill="#666">HTTP :80 (or VS Code port forward over SSH)</text>
+
+  <!-- ============== legend ============== -->
+  <g transform="translate(40, 715)">
+    <rect x="0"   y="0" width="14" height="14" class="infra"/>
+    <text x="20"  y="12">Infrastructure / tooling</text>
+    <rect x="170" y="0" width="14" height="14" class="py"/>
+    <text x="190" y="12">Python</text>
+    <rect x="260" y="0" width="14" height="14" class="data"/>
+    <text x="280" y="12">Data / files</text>
+    <rect x="380" y="0" width="14" height="14" class="ext"/>
+    <text x="400" y="12">Config / external</text>
+    <line x1="520" y1="7" x2="560" y2="7" class="flow"/>
+    <text x="570" y="12">Flow</text>
+    <line x1="630" y1="7" x2="670" y2="7" class="flow-dash"/>
+    <text x="680" y="12">Optional / network</text>
+    <line x1="810" y1="7" x2="850" y2="7" class="mount"/>
+    <text x="860" y="12">Bind mount</text>
+  </g>
+</svg>

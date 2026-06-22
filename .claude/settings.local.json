@@ -18,7 +18,19 @@
       "Bash(tasklist)",
       "Bash(wmic process:*)",
       "Bash(curl:*)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://192.168.11.37:8765/manifest.json\" -UseBasicParsing -TimeoutSec 8; \"LAN OK: $\\($r.StatusCode\\) \\($\\($r.RawContentLength\\) bytes\\)\" } catch { \"LAN ERR: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(Stop-Process *)",
+      "Bash(gdalinfo \"C:\\\\Users\\\\Aruma\\\\OneDrive\\\\Documents\\\\NAKAMURA LABS\\\\Processed_TIFS\\\\Todoroki_Drone_1111_2024_ortho.tif\")",
+      "PowerShell(Test-Path *)",
+      "PowerShell(conda run *)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(git log --all --diff-filter=A --name-only --format=\"%h\" | Select-String -Pattern \"config\"; Write-Output '--- grep history for token ---'; git grep -l \"eyJ\" $\\(git rev-list --all\\) -- cesium_config.json 2>$null; Write-Output 'done')",
+      "PowerShell(Write-Output '=== Windows .ssh ==='; if \\(Test-Path \"$env:USERPROFILE\\\\.ssh\"\\) { Get-ChildItem -Force \"$env:USERPROFILE\\\\.ssh\" | Select-Object Name, Length } else { Write-Output 'no .ssh dir' }; Write-Output '=== WSL .ssh ==='; wsl -d Ubuntu -e ls -la /home/armander/.ssh)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(wsl -d Ubuntu-24.04 -e sh -c \"ls -la ~/.ssh 2>/dev/null; echo '---'; cat ~/.ssh/config 2>/dev/null; echo '---'; whoami\")"
     ]
   }
 }

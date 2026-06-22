@@ -10,6 +10,7 @@ are not generated. Open in any browser, Inkscape, or VS Code's SVG preview.
 | `03_cesium_pipeline.svg` | Geospatial post-processing — `cesium_pipeline.py` | `cesium_pipeline.py` |
 | `04_viewers.svg` | Three browser viewers + manifest.json contract | `cesium_viewer.html`, `ortho_viewer.html`, `landuse_viewer.html` |
 | `05_docker_stack.svg` | nginx + pipeline containers + volumes | `Dockerfile.app`, `docker-compose.yml`, `nginx/default.conf` |
+| `06_remote_dev.svg` | VS Code Remote-SSH development on the mdx VM | `docker-compose.yml`, `docs/REMOTE_DEV_MDX.md` |
 
 ## Visual vocabulary
 
