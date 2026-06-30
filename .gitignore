@@ -1,5 +1,6 @@
-# Cesium pipeline - actual config contains ion token, never commit
+# Cesium pipeline - actual configs contain ion token, never commit
 cesium_config.json
+cesium_config.docker.json
 
 # Python
 __pycache__/

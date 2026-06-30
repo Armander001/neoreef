@@ -1,0 +1,9 @@
+2026-05-12 18:30:49  INFO     ============================================================
+2026-05-12 18:30:49  INFO     NeoReef Cesium Pipeline  —  stage: landuse
+2026-05-12 18:30:49  INFO     Config: cesium_config.json
+2026-05-12 18:30:49  INFO     ============================================================
+2026-05-12 18:30:49  INFO     --- Stage: land use -> GeoJSON ---
+2026-05-12 18:30:49  ERROR    geopandas is not installed. Run: conda install -c conda-forge geopandas
+2026-05-12 18:30:49  ERROR      Failed to convert TOCHI11.shp
+2026-05-12 18:30:49  INFO     Processed 0 land use layer(s)
+2026-05-12 18:30:49  INFO     Pipeline complete.

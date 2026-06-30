@@ -2,7 +2,7 @@
   "_comment": "Copy this file to cesium_config.json and fill in your values. cesium_config.json is gitignored.",
 
   "OUTPUT_BASE": "D:/Armando/Processed_Projects",
-  "LANDUSE_DIR": "C:/Users/Aruma/OneDrive/Documents/NAKAMURA LABS/LANDUSE",
+  "LANDUSE_DIR": "C:/Users/Arumando/Documents/GitHub/neoreef/LANDUSE",
   "CESIUM_OUTPUT_DIR": "D:/Armando/Processed_Projects/cesium_output",
 
   "CESIUM_ION_TOKEN": "YOUR_ION_ACCESS_TOKEN_HERE",

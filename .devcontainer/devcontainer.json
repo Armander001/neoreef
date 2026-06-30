@@ -1,17 +1,20 @@
 {
     "name": "NeoReef Dev",
-    "image": "mcr.microsoft.com/devcontainers/python:3.11-bullseye",
-    "features": {
-        "ghcr.io/devcontainers/features/conda:1": {}
+    "build": {
+        "dockerfile": "Dockerfile"
     },
     "onCreateCommand": "conda install -y -c conda-forge rasterio geopandas fiona && pip install requests boto3",
 
-    // Local dev server + nginx
-    "forwardPorts": [8765, 80],
+    // Local dev server + nginx + Claude Code OAuth
+    "forwardPorts": [8765, 80, 54545],
     "portsAttributes": {
         "8765": {
             "label": "NeoReef Dev Server",
             "onAutoForward": "notify"
+        },
+        "54545": {
+            "label": "Claude Code OAuth",
+            "onAutoForward": "silent"
         }
     },
 
@@ -21,7 +24,8 @@
     "remoteEnv": {
         "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
         "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
-        "NO_PROXY": "${localEnv:NO_PROXY:localhost,127.0.0.1}"
+        "NO_PROXY": "${localEnv:NO_PROXY:localhost,127.0.0.1}",
+        "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
     },
 
     "customizations": {
