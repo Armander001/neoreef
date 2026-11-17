@@ -1,0 +1,32 @@
+# NeoReef pipeline — production container
+# Build context is the repo root (see docker-compose.yml: context: ..).
+#
+#   docker compose run --rm pipeline --config /app/config/cesium_config.docker.json --stage all
+
+FROM continuumio/miniconda3
+
+# Optional proxy build args — pass with --build-arg when inside the lab
+ARG HTTP_PROXY=""
+ARG HTTPS_PROXY=""
+ARG NO_PROXY="localhost,127.0.0.1"
+ENV HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    NO_PROXY=${NO_PROXY}
+
+# Geospatial stack (GDAL-based packages must come from conda-forge)
+RUN conda install -y -c conda-forge rasterio geopandas fiona \
+    && conda clean -afy
+
+WORKDIR /app
+
+# Install the neoreef package (+ requests/boto3) and bundle the viewers
+COPY pyproject.toml README.md LICENSE /app/
+COPY src/ /app/src/
+COPY viewers/ /app/viewers/
+RUN pip install --no-cache-dir "/app[pipeline]"
+
+# The manifest stage copies the viewers from here next to manifest.json
+ENV NEOREEF_VIEWERS_DIR=/app/viewers
+
+ENTRYPOINT ["neoreef-pipeline"]
+CMD ["--config", "/app/config/cesium_config.docker.json", "--stage", "all"]

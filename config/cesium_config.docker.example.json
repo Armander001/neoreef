@@ -1,0 +1,20 @@
+{
+  "_comment": "Container paths. Copy to cesium_config.docker.json and fill in the tokens.",
+  "_comment_paths": "DATA_SOURCE_DIR (host, see deploy/docker-compose.yml) is bind-mounted read-only at /app/input; the pipeline writes to the named volume at /app/output, which nginx serves.",
+
+  "OUTPUT_BASE": "/app/input/Processed_Projects",
+  "LANDUSE_DIR": "/app/input/LANDUSE",
+  "CESIUM_OUTPUT_DIR": "/app/output",
+  "MODELS_3D_DIR": "/app/input/Processed_Projects/3d_models",
+
+  "CESIUM_ION_WRITE_TOKEN": "YOUR_ION_ACCESS_TOKEN_HERE",
+  "CESIUM_ION_VIEWER_TOKEN": "YOUR_READ_ONLY_TOKEN_HERE",
+  "USE_ION": true,
+
+  "LOCAL_SERVER_PORT": 8765,
+  "SERVER_BASE_URL": "",
+  "SHAPEFILE_FALLBACK_CRS": "EPSG:6685",
+  "SURVEY_PATTERN": "^Ishi(?:\\d{2})_S\\d{3}_\\d{4}_A\\d$",
+  "SURVEY_POSITIONS_FILE": "survey_positions.json",
+  "CONTINUE_ON_ERROR": true
+}

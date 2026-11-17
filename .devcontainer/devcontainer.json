@@ -3,7 +3,7 @@
     "build": {
         "dockerfile": "Dockerfile"
     },
-    "onCreateCommand": "conda install -y -c conda-forge rasterio geopandas fiona && pip install requests boto3",
+    "onCreateCommand": "conda install -y -c conda-forge rasterio geopandas fiona && pip install -e '.[pipeline,dev]'",
 
     // Local dev server + nginx + Claude Code OAuth
     "forwardPorts": [8765, 80, 54545],

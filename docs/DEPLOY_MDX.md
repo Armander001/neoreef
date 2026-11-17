@@ -54,11 +54,11 @@ sudo usermod -aG docker $USER   # log out/in afterwards
 git clone https://github.com/Armander001/neoreef.git ~/neoreef
 ```
 
-`cesium_config.json` is gitignored (it holds the Cesium ion token) — copy it over by hand and **adjust its paths** for the VM:
+`config/cesium_config.json` is gitignored (it holds the Cesium ion token) — copy it over by hand and **adjust its paths** for the VM:
 
 ```bash
 # From the local machine
-scp cesium_config.json mdxuser@<global-ip>:~/neoreef/
+scp config/cesium_config.json mdxuser@<global-ip>:~/neoreef/config/
 ```
 
 Config values that change for the VM:
@@ -80,17 +80,17 @@ scp -r <CESIUM_OUTPUT_DIR>/* mdxuser@<global-ip>:~/neoreef-data/output/
 
 (`rsync -avz --progress` via WSL or Git Bash is much better for multi-GB re-syncs — it skips unchanged COGs.)
 
-The stock `docker-compose.yml` serves a *named volume* that only the pipeline container writes to. When output is synced from outside, bind-mount the synced directory instead, using a `docker-compose.override.yml` on the VM (already gitignored, so it never touches the repo):
+The stock `deploy/docker-compose.yml` serves a *named volume* that only the pipeline container writes to. When output is synced from outside, bind-mount the synced directory instead, using a `docker-compose.override.yml` on the VM (already gitignored, so it never touches the repo):
 
 ```yaml
-# ~/neoreef/docker-compose.override.yml  (VM only)
+# ~/neoreef/deploy/docker-compose.override.yml  (VM only)
 services:
   nginx:
     volumes:
       - /home/mdxuser/neoreef-data/output:/srv/neoreef:ro
 ```
 
-**Alternative: run the pipeline on the VM.** Transfer the raw `*_ortho.tif` + shapefiles instead, set `DATA_SOURCE_DIR` to that directory, and run `docker compose run --rm pipeline --config /app/config/cesium_config.json --stage all`. Only worth it if local→VM transfer of raw inputs is cheaper than transfer of outputs (it usually isn't — raw and processed are similar sizes, and the pipeline needs RAM for windowed COG conversion).
+**Alternative: run the pipeline on the VM.** Transfer the raw `*_ortho.tif` + shapefiles instead, set `DATA_SOURCE_DIR` to that directory, and run `docker compose run --rm pipeline --config /app/config/cesium_config.docker.json --stage all`. Only worth it if local→VM transfer of raw inputs is cheaper than transfer of outputs (it usually isn't — raw and processed are similar sizes, and the pipeline needs RAM for windowed COG conversion).
 
 ## 5. Start serving
 
@@ -104,7 +104,7 @@ Verify from the local machine:
 
 ```bash
 curl -I http://<global-ip>/manifest.json          # expect 200, Cache-Control: no-cache
-curl -I http://<global-ip>/                        # expect 200 (cesium_viewer.html is the index)
+curl -I http://<global-ip>/                        # expect 200 (index.html is the index)
 curl -s -H "Range: bytes=0-1023" -o /dev/null -w "%{http_code}" http://<global-ip>/<some>.tif   # expect 206
 ```
 
@@ -121,7 +121,7 @@ Then open `http://<global-ip>/` in a browser. The viewers load CesiumJS from a C
 
 ## 7. Security notes
 
-- The ion token lives only in `cesium_config.json` on the VM (and embedded in viewer config where applicable). Keep VM SSH key-only; never commit the config.
+- The ion token lives only in `config/cesium_config.json` on the VM (the manifest carries only the separate read-only viewer token). Keep VM SSH key-only; never commit the config.
 - nginx sends `Access-Control-Allow-Origin: *`. This is intentional for read-only public survey data; revisit if anything sensitive is ever added to the output directory.
 - HTTP only for now. If the deployment gets a DNS name, add HTTPS (Caddy or certbot in front of nginx) before sharing the URL broadly.
 

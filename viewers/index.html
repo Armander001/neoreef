@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="main">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeoReef — Ishigaki Island</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <link rel="stylesheet" href="css/common.css" />
+  <link rel="stylesheet" href="css/themes.css" />
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="legend">
+  <div id="legend-title">Land Use</div>
+  <div id="legend-items"></div>
+</div>
+
+<div id="toolbar">
+  <button id="flyHomeBtn" class="tb-btn">&#9671; Fly to Ishigaki</button>
+  <button id="tilesBtn" class="tb-btn active" title="Show/hide Google Photorealistic 3D Tiles">&#9956; 3D Tiles</button>
+  <button id="separateBtn" class="tb-btn alt" title="Separate layers in 3D space">&#9865; Separate Layers</button>
+  <div class="tb-divider"></div>
+  <div id="layerContent"><span class="tb-note">Loading layers…</span></div>
+</div>
+
+<div id="status"></div>
+
+<script type="module">
+import { loadManifestOrEmpty } from "./js/manifest.js";
+import { loadLegend, buildLegend } from "./js/legend.js";
+import { applyIonToken, createViewer, addWorldTerrain, addOsmBase, addIonBase, setInitialView } from "./js/viewer.js";
+import { flyToIsland, flyToOrtho } from "./js/camera.js";
+import { OrthoLayers } from "./js/layers/ortho.js";
+import { LanduseLayers } from "./js/layers/landuse.js";
+import { loadModels } from "./js/layers/models.js";
+import { SeparationMode } from "./js/separation.js";
+import { makeCard, appendGroup } from "./js/ui/toolbar.js";
+import { showStatus, setNote } from "./js/ui/status.js";
+import { readModeParams, applyPeppersGhost } from "./js/modes/peppers_ghost.js";
+
+async function init() {
+  const params = readModeParams();
+  const manifest = await loadManifestOrEmpty("manifest.json");
+  if (manifest.error) setNote("layerContent", `manifest.json unavailable: ${manifest.error}`, { error: true });
+  const legend = await loadLegend(manifest.legend_url);
+
+  applyIonToken(manifest);
+  const viewer = createViewer("cesiumContainer");
+  await addWorldTerrain(viewer);
+  addOsmBase(viewer);
+  const base = await addIonBase(viewer, manifest);
+  setInitialView(viewer, manifest.survey_area);
+  if (params.peppersGhost) applyPeppersGhost(viewer, manifest.survey_area, params);
+
+  const orthos = new OrthoLayers(viewer, manifest);
+  const landuse = new LanduseLayers(viewer, legend, {
+    alpha: 0.55, onChange: () => buildLegend(legend, landuse.activeCodes()) });
+  const separation = new SeparationMode(viewer, manifest, { landuse, orthos });
+
+  // Buttons
+  document.getElementById("flyHomeBtn").addEventListener("click", () => flyToIsland(viewer, manifest));
+  const tilesBtn = document.getElementById("tilesBtn");
+  if (base.tileset) {
+    tilesBtn.addEventListener("click", () => {
+      base.tileset.show = !base.tileset.show;
+      tilesBtn.classList.toggle("active", base.tileset.show);
+    });
+  } else {
+    tilesBtn.disabled = true;
+    tilesBtn.classList.remove("active");
+    tilesBtn.title = "No 3D tileset loaded";
+  }
+  const separateBtn = document.getElementById("separateBtn");
+  separateBtn.addEventListener("click", () => separation.toggle(separateBtn));
+
+  // Toolbar cards
+  if (!manifest.error) buildToolbar(manifest, viewer, orthos, landuse);
+
+  // Load everything in parallel
+  await Promise.all([
+    ...manifest.orthomosaics.map(r => orthos.add(r)),
+    ...manifest.landuse_layers.map(r => landuse.add(r)),
+    loadModels(viewer, manifest),
+  ]);
+  showStatus("NeoReef viewer ready", 4000);
+}
+
+function buildToolbar(manifest, viewer, orthos, landuse) {
+  const content = document.getElementById("layerContent");
+  content.innerHTML = "";
+
+  const orthoCard = rec => {
+    const ok = orthos.hasSource(rec);
+    return makeCard({
+      name: rec.survey_name, id: "ortho_" + rec.id, enabled: ok, alpha: 1.0,
+      tag: ok ? rec.ortho_type : "no source", tagClass: ok ? rec.ortho_type : "warn",
+      onToggle: v => orthos.setShow(rec.id, v),
+      onOpacity: a => orthos.setAlpha(rec.id, a),
+      onFly: () => { flyToOrtho(viewer, manifest, rec); showStatus("Navigating to " + rec.survey_name); },
+    });
+  };
+  appendGroup(content, "Drone", manifest.orthomosaics.filter(r => r.ortho_type === "drone").map(orthoCard));
+  appendGroup(content, "Coral", manifest.orthomosaics.filter(r => r.ortho_type === "coral").map(orthoCard));
+
+  appendGroup(content, "Land Use", manifest.landuse_layers.map(rec => makeCard({
+    name: `${rec.year_label} (${rec.calendar_year})`, id: "lu_" + rec.id, alpha: 0.55,
+    onToggle: async v => {
+      if (v && !landuse.sources[rec.id]) {
+        showStatus("Loading land use " + rec.year_label + "…", 10000);
+        await landuse.add(rec);
+        showStatus("Land use " + rec.year_label + " loaded");
+      } else {
+        landuse.setShow(rec.id, v);
+      }
+    },
+    onOpacity: a => landuse.setAlpha(rec.id, a),
+  })));
+
+  if (!content.children.length) setNote("layerContent", "No layers in manifest");
+}
+
+window.addEventListener("load", init);
+</script>
+</body>
+</html>

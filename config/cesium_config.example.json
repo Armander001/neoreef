@@ -1,0 +1,33 @@
+{
+  "_comment": "Copy this file to cesium_config.json and fill in your values. config/*.json (except *.example.json) is gitignored.",
+
+  "OUTPUT_BASE": "D:/Armando/Processed_Projects",
+  "LANDUSE_DIR": "C:/Users/Arumando/Documents/GitHub/neoreef/LANDUSE",
+  "CESIUM_OUTPUT_DIR": "D:/Armando/Processed_Projects/cesium_output",
+  "MODELS_3D_DIR": "D:/Armando/Processed_Projects/3d_models",
+
+  "_comment_tokens": "Two ion tokens. WRITE (assets:write) is used by --stage upload only and is never published. VIEWER must be a separate READ-ONLY token (assets:read); it is written into manifest.json for the browser.",
+  "CESIUM_ION_WRITE_TOKEN": "YOUR_ION_ACCESS_TOKEN_HERE",
+  "CESIUM_ION_VIEWER_TOKEN": "YOUR_READ_ONLY_TOKEN_HERE",
+  "USE_ION": true,
+
+  "LOCAL_SERVER_PORT": 8765,
+
+  "_comment_server_url": "Leave empty for relative URLs (works when viewers+data are co-hosted). Set to full URL like 'http://163.220.179.199/neoreef' when data is on a different origin.",
+  "SERVER_BASE_URL": "",
+
+  "SHAPEFILE_FALLBACK_CRS": "EPSG:6685",
+
+  "SURVEY_PATTERN": "^Ishi(?:\\d{2})_S\\d{3}_\\d{4}_A\\d$",
+
+  "_comment_positions": "3D model placement. Defaults to survey_positions.json next to this file; see survey_positions.example.json.",
+  "SURVEY_POSITIONS_FILE": "survey_positions.json",
+
+  "_comment_extras": "EXTRA_ORTHOS: [{path, survey_name, ortho_type}]. EXTRA_3D_MODELS: [{path, survey_name, model_type, format, position}]. known_ion_assets: {id -> ion asset id} for assets uploaded by hand. BASE_ION_3DTILES_ASSET: e.g. 2275207 for Google Photorealistic 3D Tiles.",
+  "EXTRA_ORTHOS": [],
+  "EXTRA_3D_MODELS": [],
+  "known_ion_assets": {},
+  "BASE_ION_3DTILES_ASSET": null,
+
+  "CONTINUE_ON_ERROR": true
+}

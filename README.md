@@ -6,29 +6,34 @@ Coral reef ecological data visualized as interactive 3D layers on a [CesiumJS](h
 
 | Stage | Tooling | Entry point |
 |---|---|---|
-| Photogrammetry | Agisoft Metashape Pro 2.x (Python API) | `Batch_metashape.py` (run with `metashape.exe -r`) |
-| Geospatial post-processing | rasterio / geopandas / Cesium ion | `cesium_pipeline.py` |
-| Visualization | CesiumJS 1.117, no build step | `cesium_viewer.html`, `ortho_viewer.html`, `landuse_viewer.html` |
-| Hosting | Docker Compose (nginx + pipeline) | `docker-compose.yml` |
+| Photogrammetry | Agisoft Metashape Pro 2.x (Python API) | `Batch_metashape.py` (run with `metashape.exe -r`) → `src/neoreef/metashape/` |
+| Geospatial post-processing | rasterio / geopandas / Cesium ion | `neoreef-pipeline` (or `python cesium_pipeline.py`) → `src/neoreef/pipeline/` |
+| Visualization | CesiumJS 1.117, ES modules, no build step | `viewers/index.html`, `viewers/ortho.html`, `viewers/landuse.html` |
+| Hosting | Docker Compose (nginx + pipeline) | `deploy/docker-compose.yml` |
 
-The pipeline converts Metashape orthomosaic GeoTIFFs to Cloud Optimized GeoTIFFs, land-use shapefiles to styled GeoJSON, and OBJ exports to meshopt/KTX2-compressed glTF, then writes a `manifest.json` that the viewers consume. Layers can be served locally (nginx with range-request support) or uploaded to Cesium ion.
+The pipeline converts Metashape orthomosaic GeoTIFFs to Cloud Optimized GeoTIFFs (plus browser-ready PNG previews), land-use shapefiles to styled GeoJSON, and places exported 3D models on the globe, then writes a versioned `manifest.json` that the viewers consume. Layers can be served locally (nginx with range-request support) or uploaded to Cesium ion.
 
-The main viewer also has a **Pepper's ghost mode** (`cesium_viewer.html?mode=peppers-ghost`) for holographic prism displays.
+The main viewer also has a **Pepper's ghost mode** (`index.html?mode=peppers-ghost`) for holographic prism displays.
 
 ## Quick start
 
 ```bash
-# 1. Photogrammetry (inside Metashape — edit USER CONFIG block first)
+# 1. Photogrammetry (inside Metashape — edit the USER CONFIG block first)
 metashape.exe -r Batch_metashape.py
 
-# 2. Post-process for Cesium (standalone Python; see requirements_cesium.txt)
-cp cesium_config.example.json cesium_config.json   # fill in paths + ion token
-python cesium_pipeline.py --config cesium_config.json --stage all
+# 2. Post-process for Cesium (conda env; see environment.yml)
+conda env create -f environment.yml && conda activate neoreef
+pip install -e ".[pipeline,dev]"
+cp config/cesium_config.example.json config/cesium_config.json   # fill in paths + ion tokens
+neoreef-pipeline --stage all
 
-# 3. Serve the viewers (file:// won't work — fetch() needs HTTP)
-python cesium_pipeline.py --config cesium_config.json --stage serve
+# 3. Serve the viewers (file:// won't work — ES modules + fetch() need HTTP)
+neoreef-pipeline --stage serve
 # or, production:
-docker compose up -d nginx
+cd deploy && docker compose up -d nginx
+
+# Tests
+pytest
 ```
 
 Full run instructions, config reference, and conventions: [CLAUDE.md](CLAUDE.md).
@@ -36,9 +41,10 @@ Full run instructions, config reference, and conventions: [CLAUDE.md](CLAUDE.md)
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) — project structure, how to run, config reference, conventions
-- [docs/architecture/](docs/architecture/README.md) — subsystem diagrams (data flow, pipelines, viewers, Docker stack)
+- [docs/ARCHITECTURE_BLUEPRINT.md](docs/ARCHITECTURE_BLUEPRINT.md) — module layout, data flow, manifest contract
+- [docs/architecture/](docs/architecture/README.md) — subsystem diagrams
 - [docs/DEPLOY_MDX.md](docs/DEPLOY_MDX.md) — deploying to the mdx research cloud
-- [docs/REPORT_code_duplication.md](docs/REPORT_code_duplication.md) — code-health report and cleanup plan
+- [docs/REPORT_code_duplication.md](docs/REPORT_code_duplication.md) — the pre-refactor code-health report
 
 ## Vision
 

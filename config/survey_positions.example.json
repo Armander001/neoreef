@@ -1,0 +1,4 @@
+{
+  "_comment": "Copy to survey_positions.json. Underwater surveys have no GPS: each 3D model needs a hand-entered globe position. Keys are survey names (or EXTRA_3D_MODELS survey_name). height is metres above the WGS84 ellipsoid (negative = below sea level). heading_deg rotates the model's local +Y axis clockwise from north.",
+  "Ishi25_S008_0915_A1": { "lon": 124.2050, "lat": 24.4700, "height": -3.0, "heading_deg": 0 }
+}

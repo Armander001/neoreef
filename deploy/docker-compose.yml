@@ -1,0 +1,50 @@
+# NeoReef Docker Compose  (run from this directory, or pass -f deploy/docker-compose.yml)
+#
+# First-time setup: build the pipeline image and process the data
+#   cd deploy
+#   cp ../config/cesium_config.docker.example.json ../config/cesium_config.docker.json   # fill in tokens
+#   docker compose build pipeline
+#   docker compose run --rm pipeline --config /app/config/cesium_config.docker.json --stage all
+#
+# Start the web server (serves the pipeline output volume on port 80):
+#   docker compose up -d nginx
+#
+# Re-run a single stage later (state is kept in the output volume):
+#   docker compose run --rm pipeline --config /app/config/cesium_config.docker.json --stage manifest
+#
+# Logs:
+#   docker compose logs -f nginx
+#
+# Host paths:
+#   DATA_SOURCE_DIR (default: repo root) is mounted read-only at /app/input, so the
+#   docker config's OUTPUT_BASE=/app/input/Processed_Projects and LANDUSE_DIR=/app/input/LANDUSE
+#   resolve to <DATA_SOURCE_DIR>/Processed_Projects and <DATA_SOURCE_DIR>/LANDUSE.
+
+services:
+  # --- Web server (always running) ---
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "${NEOREEF_PORT:-80}:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - pipeline-output:/srv/neoreef:ro
+    restart: unless-stopped
+
+  # --- Data pipeline (run on demand) ---
+  # The image bundles src/ and viewers/; only data and config come from the host.
+  pipeline:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.pipeline
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+    volumes:
+      - pipeline-output:/app/output
+      - ${DATA_SOURCE_DIR:-..}:/app/input:ro
+      - ../config:/app/config:ro          # cesium_config.docker.json + survey_positions.json
+    profiles: ["pipeline"]
+
+volumes:
+  pipeline-output:

@@ -6,11 +6,11 @@ are not generated. Open in any browser, Inkscape, or VS Code's SVG preview.
 | File | Subsystem | Source files described |
 |---|---|---|
 | `01_system_overview.svg` | End-to-end data flow from photos to browser | All |
-| `02_metashape_pipeline.svg` | Photogrammetry batch — `Batch_metashape.py` | `Batch_metashape.py` |
-| `03_cesium_pipeline.svg` | Geospatial post-processing — `cesium_pipeline.py` | `cesium_pipeline.py` |
-| `04_viewers.svg` | Three browser viewers + manifest.json contract | `cesium_viewer.html`, `ortho_viewer.html`, `landuse_viewer.html` |
-| `05_docker_stack.svg` | nginx + pipeline containers + volumes | `Dockerfile.app`, `docker-compose.yml`, `nginx/default.conf` |
-| `06_remote_dev.svg` | VS Code Remote-SSH development on the mdx VM | `docker-compose.yml`, `docs/REMOTE_DEV_MDX.md` |
+| `02_metashape_pipeline.svg` | Photogrammetry batch — `Batch_metashape.py` | `Batch_metashape.py`, `src/neoreef/metashape/` |
+| `03_cesium_pipeline.svg` | Geospatial post-processing — `cesium_pipeline.py` | `src/neoreef/pipeline/` |
+| `04_viewers.svg` | Three browser viewers + manifest.json contract | `viewers/index.html`, `viewers/ortho.html`, `viewers/landuse.html`, `viewers/js/` |
+| `05_docker_stack.svg` | nginx + pipeline containers + volumes | `deploy/Dockerfile.pipeline`, `deploy/docker-compose.yml`, `deploy/nginx/default.conf` |
+| `06_remote_dev.svg` | VS Code Remote-SSH development on the mdx VM | `deploy/docker-compose.yml`, `docs/REMOTE_DEV_MDX.md` |
 
 ## Visual vocabulary
 
@@ -41,3 +41,6 @@ column/row grid used, so future edits stay aligned. To add a new component:
 
 If a subsystem grows large enough to deserve its own file, add a new
 `NN_subsystem.svg` here and a row to the table above.
+
+> **Note (2026-11):** the diagrams show the pre-modularization layout (single-file scripts). Module-level
+> structure and data flow are documented in `../ARCHITECTURE_BLUEPRINT.md`; the subsystem boundaries drawn here are unchanged.

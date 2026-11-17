@@ -44,7 +44,7 @@ Recommended on the remote:
 | Extension | Why |
 |---|---|
 | **Claude Code** (`anthropic.claude-code`) | Claude works directly on the VM's files and terminal |
-| **Python** (`ms-python.python`) + Pylance | Editing `cesium_pipeline.py` with IntelliSense |
+| **Python** (`ms-python.python`) + Pylance | Editing `src/neoreef/` with IntelliSense |
 | **Container Tools / Docker** (`ms-azuretools.vscode-containers`) | Sidebar view of containers, logs, shell-in, restart |
 
 ### Claude Code on the VM
@@ -70,10 +70,10 @@ Metashape **never** runs on the VM (license + GPU live on your Windows machine).
 
 ### The edit→see loop for viewers (the common case)
 
-Because `cesium_viewer.html` is bind-mounted into nginx, the loop is just:
+Because `viewers/` is bind-mounted into nginx, the loop is just:
 
 ```
-edit cesium_viewer.html on the VM  →  refresh http://<global-ip>/  →  done
+edit viewers/index.html (or js/*) on the VM  →  refresh http://<global-ip>/  →  done
 ```
 
 No container restart, no pipeline run, no sync. Commit from the VM when happy (`git push` — set up a GitHub credential or SSH key on the VM once).
@@ -93,7 +93,7 @@ nginx picks changes up immediately (volume is read-only to it; `manifest.json` a
 docker compose up -d nginx            # start serving (survives reboots)
 docker compose logs -f nginx          # watch requests / errors live
 docker compose run --rm pipeline \
-  --config /app/config/cesium_config.json --stage manifest   # rebuild manifest on the VM
+  --config /app/config/cesium_config.docker.json --stage manifest   # rebuild manifest on the VM
 docker compose ps                     # what's running
 docker compose down                   # stop everything
 ```
@@ -108,8 +108,8 @@ To test without exposing a port through the mdx ACL, use VS Code's **Ports** pan
 
 ```
 ~/neoreef/                      # git clone — code, compose file, viewers
-~/neoreef/cesium_config.json    # gitignored — scp'd from Windows, ion token inside
-~/neoreef/docker-compose.override.yml   # VM-only nginx bind-mount (gitignored)
+~/neoreef/config/cesium_config.json    # gitignored — scp'd from Windows, ion token inside
+~/neoreef/deploy/docker-compose.override.yml   # VM-only nginx bind-mount (gitignored)
 ~/neoreef-data/output/          # synced pipeline output (COGs, GeoJSON, manifest)
 ~/.vscode-server/               # VS Code backend + remote extensions (auto-managed)
 ```

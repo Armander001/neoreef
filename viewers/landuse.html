@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="landuse">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeoReef — Land Use Viewer</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <link rel="stylesheet" href="css/common.css" />
+  <link rel="stylesheet" href="css/themes.css" />
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="legend">
+  <div id="legend-title">Land Use</div>
+  <div id="legend-items"></div>
+</div>
+
+<div id="toolbar">
+  <button id="flyHomeBtn" class="tb-btn">&#9671; Fly to Ishigaki</button>
+  <button id="separateBtn" class="tb-btn" title="Separate layers in 3D space">&#9865; Separate Layers</button>
+  <div class="tb-divider"></div>
+  <div id="layerContent"><span class="tb-note">Loading…</span></div>
+</div>
+
+<div id="status"></div>
+
+<script type="module">
+import { loadManifestOrEmpty } from "./js/manifest.js";
+import { loadLegend, buildLegend } from "./js/legend.js";
+import { applyIonToken, createViewer, addWorldTerrain, setDarkGlobe, setInitialView } from "./js/viewer.js";
+import { flyToIsland } from "./js/camera.js";
+import { LanduseLayers } from "./js/layers/landuse.js";
+import { SeparationMode } from "./js/separation.js";
+import { makeCard, appendGroup } from "./js/ui/toolbar.js";
+import { showStatus, setNote } from "./js/ui/status.js";
+
+const ALTITUDE = 40000;
+
+async function init() {
+  const manifest = await loadManifestOrEmpty("manifest.json");
+  if (manifest.error) setNote("layerContent", `manifest.json unavailable: ${manifest.error}`, { error: true });
+  const legend = await loadLegend(manifest.legend_url);
+
+  applyIonToken(manifest);
+  const viewer = createViewer("cesiumContainer");
+  setDarkGlobe(viewer, "#060912");
+  await addWorldTerrain(viewer);
+  setInitialView(viewer, manifest.survey_area, { altitude: ALTITUDE });
+
+  const landuse = new LanduseLayers(viewer, legend, {
+    alpha: 0.6, outlineAlpha: 0.15, onChange: () => buildLegend(legend, landuse.activeCodes()) });
+  const separation = new SeparationMode(viewer, manifest, { landuse });
+
+  document.getElementById("flyHomeBtn").addEventListener("click",
+    () => flyToIsland(viewer, manifest, { altitude: ALTITUDE, duration: 1.5 }));
+  const separateBtn = document.getElementById("separateBtn");
+  separateBtn.addEventListener("click", () => separation.toggle(separateBtn));
+
+  if (!manifest.error) {
+    const content = document.getElementById("layerContent");
+    content.innerHTML = "";
+    appendGroup(content, "Land Use", manifest.landuse_layers.map(rec => makeCard({
+      name: `${rec.year_label} (${rec.calendar_year})`, id: "lu_" + rec.id, alpha: 0.6,
+      onToggle: v => landuse.setShow(rec.id, v),
+      onOpacity: a => landuse.setAlpha(rec.id, a),
+    })));
+    if (!content.children.length) setNote("layerContent", "No land use layers");
+  }
+
+  await Promise.all(manifest.landuse_layers.map(async rec => {
+    showStatus(`Loading land use ${rec.year_label}…`, 20000);
+    const src = await landuse.add(rec);
+    if (src) showStatus(`Loaded ${rec.year_label} (${src.entities.values.length} polygons)`, 4000);
+    else showStatus(`Error loading ${rec.year_label}`, 4000);
+  }));
+}
+
+window.addEventListener("load", init);
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# conda env for the Cesium pipeline (GDAL-backed packages must come from conda-forge).
+#   conda env create -f environment.yml
+#   conda activate neoreef
+#   pip install -e ".[pipeline,dev]"
+name: neoreef
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.11
+  - rasterio>=1.3
+  - geopandas>=0.13
+  - fiona>=1.9
+  - pip

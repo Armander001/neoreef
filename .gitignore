@@ -1,14 +1,24 @@
 # Cesium pipeline - actual configs contain ion token, never commit
+config/*.json
+!config/*.example.json
 cesium_config.json
 cesium_config.docker.json
+
+# Pipeline output (manifest.json carries a token; COGs are multi-GB)
+Processed_Projects/
+*.log
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+*.egg-info/
+build/
 
 # Docker
 docker-compose.override.yml
+deploy/docker-compose.override.yml
 .env
 
 # OS

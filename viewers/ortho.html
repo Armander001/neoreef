@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="ortho">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeoReef — Ortho Viewer</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.117/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <link rel="stylesheet" href="css/common.css" />
+  <link rel="stylesheet" href="css/themes.css" />
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<div id="toolbar">
+  <button id="flyHomeBtn" class="tb-btn">&#9671; Fly to Ishigaki</button>
+  <div class="tb-divider"></div>
+  <div id="layerContent"><span class="tb-note">Loading…</span></div>
+</div>
+
+<div id="status"></div>
+
+<script type="module">
+import { loadManifestOrEmpty } from "./js/manifest.js";
+import { applyIonToken, createViewer, addWorldTerrain, setDarkGlobe, setInitialView } from "./js/viewer.js";
+import { flyToIsland, flyToOrtho } from "./js/camera.js";
+import { OrthoLayers } from "./js/layers/ortho.js";
+import { makeCard, appendGroup } from "./js/ui/toolbar.js";
+import { showStatus, setNote } from "./js/ui/status.js";
+
+async function init() {
+  const manifest = await loadManifestOrEmpty("manifest.json");
+  if (manifest.error) setNote("layerContent", `manifest.json unavailable: ${manifest.error}`, { error: true });
+
+  applyIonToken(manifest);
+  const viewer = createViewer("cesiumContainer", { infoBox: false, selectionIndicator: false });
+  setDarkGlobe(viewer, "#060912");        // orthos against black, no base imagery
+  await addWorldTerrain(viewer);
+  setInitialView(viewer, manifest.survey_area);
+
+  const orthos = new OrthoLayers(viewer, manifest);
+  document.getElementById("flyHomeBtn").addEventListener("click", () => flyToIsland(viewer, manifest));
+
+  if (!manifest.error) {
+    const content = document.getElementById("layerContent");
+    content.innerHTML = "";
+    const card = rec => {
+      const ok = orthos.hasSource(rec);
+      return makeCard({
+        name: rec.survey_name, id: "ortho_" + rec.id, enabled: ok, alpha: 1.0,
+        tag: ok ? rec.ortho_type : "no source", tagClass: ok ? rec.ortho_type : "warn",
+        onToggle: v => orthos.setShow(rec.id, v),
+        onOpacity: a => orthos.setAlpha(rec.id, a),
+        onFly: rec.bbox_wgs84 ? () => flyToOrtho(viewer, manifest, rec) : null,
+      });
+    };
+    appendGroup(content, "Drone", manifest.orthomosaics.filter(r => r.ortho_type === "drone").map(card));
+    appendGroup(content, "Coral", manifest.orthomosaics.filter(r => r.ortho_type === "coral").map(card));
+    if (!content.children.length) setNote("layerContent", "No ortho layers in manifest");
+  }
+
+  await Promise.all(manifest.orthomosaics.map(r => orthos.add(r)));
+  const first = manifest.orthomosaics.find(r => r.bbox_wgs84 && orthos.entries[r.id]);
+  if (first) flyToOrtho(viewer, manifest, first);
+  showStatus(`${Object.keys(orthos.entries).length} ortho layer(s) loaded`, 3000);
+}
+
+window.addEventListener("load", init);
+</script>
+</body>
+</html>

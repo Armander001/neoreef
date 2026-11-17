@@ -1,0 +1,12 @@
+/* Per-page accents. Set <html data-theme="..."> to pick one. */
+
+:root[data-theme="main"]    { --bg: #000;    --panel-rgb: 12, 16, 26; }
+
+:root[data-theme="ortho"]   { --bg: #060912; --panel-rgb: 6, 9, 18; }
+
+:root[data-theme="landuse"] {
+  --accent: #c8b4ff;  --accent-rgb: 200, 180, 255;
+  --accent-2: #7ec8e3; --accent-2-rgb: 126, 200, 227;
+  --bg: #0a0e1a;      --panel-rgb: 10, 14, 26;
+  --text: #c8b4ff;    --muted: #5a4880;
+}
